@@ -1,0 +1,54 @@
+body {
+  background: #f5f7fb;
+  color: #1f2937;
+}
+
+main.container {
+  max-width: 1080px;
+}
+
+.page-section {
+  display: none;
+}
+
+.page-section.active {
+  display: block;
+}
+
+.card {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.status-card {
+  height: 100%;
+}
+
+.status-card .label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+}
+
+.status-card .value {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #111827;
+  margin-top: 0.35rem;
+}
+
+pre.json-output {
+  background: #111827;
+  color: #f9fafb;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  overflow: auto;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.alert {
+  margin-bottom: 0;
+}
