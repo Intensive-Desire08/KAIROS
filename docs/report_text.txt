@@ -1,0 +1,456 @@
+Final Report: PseudoQuantum Entropy Service with Cryptographic Applications
+Version: 2.0
+Type: Development Plan / Architecture Specification
+Purpose: AI-assisted module generation reference.
+
+1. Project Overview
+A hybrid hardware-software system that captures physical entropy from dual photodiodes, processes it through a modular C++ backend, validates randomness using Python statistical analysis, and exposes cryptographic applications through a web-based interface.
+The primary entropy source is photodiode shot noise conditioned through analog circuitry. Since the generated entropy contains both quantum-origin shot noise and unavoidable classical noise, the project refers to the source as PseudoQuantum Entropy rather than a pure Quantum Random Number Generator (QRNG).
+Primary Goal:
+Develop a modular hardware-backed entropy service capable of supplying high-quality random data for cryptographic applications while demonstrating complete integration between hardware, C++, Python, and web technologies.
+Primary Application (v1.0):
+Cryptographic Key Generation 
+AES-GCM Image Encryption / Decryption 
+Future applications can be added without modifying the entropy generation layer.
+
+2. Technology Stack
+
+3. System Architecture
+┌──────────────────────────────────────────────────────────────────────┐
+│                     WEB BROWSER (FRONTEND)                          │
+│          HTML / CSS / JavaScript + Bootstrap + Chart.js            │
+│                                                                     │
+│     Pages: Home | Encryption | Key Generation | Settings            │
+└──────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  │ HTTP (REST API)
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                    C++ BACKEND (HTTP Server)                        │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────┐      │
+│  │ WebServer (cpp-httplib)                                    │      │
+│  │ • Static frontend serving                                  │      │
+│  │ • REST endpoints                                            │      │
+│  │ • Request routing                                            │      │
+│  └────────────────────────────────────────────────────────────┘      │
+│                              │                                       │
+│                              ▼                                       │
+│  ┌────────────────────────────────────────────────────────────┐      │
+│  │ Entropy Collector                                          │      │
+│  │ • Source selection                                          │      │
+│  │ • Entropy validation                                        │      │
+│  │ • Hardware detection                                        │      │
+│  └────────────────────────────────────────────────────────────┘      │
+│                              │                                       │
+│                 ┌────────────┴────────────┐                          │
+│                 ▼                         ▼                          │
+│      SerialEntropySource        OpenSSLEntropySource                │
+│      • boost::asio              • RAND_bytes()                      │
+│      • ESP32 Hardware           • Software fallback                 │
+│                 └────────────┬────────────┘                          │
+│                              ▼                                       │
+│  ┌────────────────────────────────────────────────────────────┐      │
+│  │ Entropy Pool                                               │      │
+│  │ • Background collection                                    │      │
+│  │ • Buffered entropy                                         │      │
+│  │ • Thread-safe access                                       │      │
+│  └────────────────────────────────────────────────────────────┘      │
+│                  │                         │                          │
+│                  ▼                         ▼                          │
+│      Cryptographic Modules         Python Analyzer                  │
+│      • KeyGenerator                • Quick Statistical Check        │
+│      • Encryptor                   • Full NIST STS                 │
+│      • Hasher                      • JSON Results                  │
+│                  │                                                    │
+│                  ▼                                                    │
+│          Logger + Configuration                                      │
+└──────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  │ Serial (USB)
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                      HARDWARE (ESP32 / Arduino)                     │
+│                                                                      │
+│ • Dual photodiodes                                                   │
+│ • LM358 amplification stage                                          │
+│ • Analog noise conditioning                                          │
+│ • ADC sampling                                                       │
+│ • LSB extraction                                                     │
+│ • Von Neumann whitening                                              │
+│ • Output: [0xAA][Random Byte]                                        │
+│ • Status LEDs                                                        │
+└──────────────────────────────────────────────────────────────────────┘
+Backend Layer Flow
+Hardware
+    │
+    ▼
+Entropy Source
+    │
+    ▼
+Entropy Collector
+    │
+    ▼
+Entropy Pool
+    ├────────► Cryptographic Modules
+    └────────► Python Analyzer
+
+4. Directory Structure
+PseudoQuantumEntropy/
+│
+├── .git/
+│
+├── hardware/
+│   └── PQHardware.ino                  # ESP32/Arduino firmware
+│
+├── backend/
+│   ├── CMakeLists.txt
+│   ├── src/
+│   │   ├── main.cpp
+│   │   ├── WebServer.cpp/h
+│   │   ├── EntropyCollector.cpp/h
+│   │   ├── EntropyPool.cpp/h
+│   │   ├── Logger.cpp/h
+│   │   ├── Config.cpp/h
+│   │   │
+│   │   ├── entropy/
+│   │   │   ├── IEntropySource.h
+│   │   │   ├── SerialEntropySource.cpp/h
+│   │   │   └── OpenSSLEntropySource.cpp/h
+│   │   │
+│   │   ├── crypto/
+│   │   │   ├── KeyGenerator.cpp/h
+│   │   │   ├── Encryptor.cpp/h
+│   │   │   └── Hasher.cpp/h
+│   │   │
+│   │   └── utilities/
+│   │       └── Helpers.cpp/h
+│   │
+│   ├── include/
+│   │   ├── httplib.h
+│   │   └── json.hpp
+│   │
+│   └── tests/
+│       └── test_*.cpp
+│
+├── analyzer/
+│   ├── requirements.txt
+│   ├── entropy_analyzer.py
+│   ├── nist_tests.py
+│   └── test_results_schema.json
+│
+├── frontend/
+│   ├── index.html
+│   ├── css/
+│   │   └── style.css
+│   ├── js/
+│   │   ├── app.js
+│   │   ├── api.js
+│   │   ├── home.js
+│   │   ├── encryption.js
+│   │   ├── keygen.js
+│   │   └── settings.js
+│   └── assets/
+│
+├── scripts/
+│   ├── build.sh
+│   ├── run.sh
+│   └── run.bat
+│
+├── config/
+│   ├── backend_config.json
+│   └── logging_config.json
+│
+├── docs/
+│   ├── README.md
+│   ├── ARCHITECTURE.md
+│   ├── API.md
+│   └── USER_GUIDE.md
+│
+└── .gitignore
+
+5. Module Breakdown
+Hardware Module
+File: hardware/PQHardware.ino
+Language: C++ (Arduino / ESP32)
+Responsibility:
+Sample photodiode noise 
+Analog signal acquisition 
+LSB extraction 
+Von Neumann whitening 
+Output entropy bytes using sync marker (0xAA) 
+Status LED control 
+
+Backend Modules (C++)
+WebServer
+Files: backend/src/WebServer.cpp/h
+Responsibility:
+Serve frontend files 
+HTTP REST endpoints 
+Request routing 
+Routes:
+GET / 
+GET /entropy?bytes=N 
+POST /keygen 
+POST /encrypt 
+POST /decrypt 
+POST /test 
+GET /status 
+POST /settings 
+
+IEntropySource
+File: backend/src/entropy/IEntropySource.h
+Responsibility:
+Common interface for all entropy providers.
+Implementations return entropy bytes without exposing the underlying source.
+
+SerialEntropySource
+Files: backend/src/entropy/SerialEntropySource.cpp/h
+Responsibility:
+ESP32 serial communication 
+Sync marker parsing 
+Byte validation 
+Hardware detection 
+Entropy acquisition 
+
+OpenSSLEntropySource
+Files: backend/src/entropy/OpenSSLEntropySource.cpp/h
+Responsibility:
+Software entropy generation 
+Uses OpenSSL RAND_bytes() 
+Automatic fallback source 
+
+EntropyCollector
+Files: backend/src/EntropyCollector.cpp/h
+Responsibility:
+Select active entropy source 
+Detect hardware availability 
+Collect entropy 
+Validate incoming bytes 
+Feed Entropy Pool 
+
+EntropyPool
+Files: backend/src/EntropyPool.cpp/h
+Responsibility:
+Background entropy collection 
+Thread-safe entropy buffer 
+Serve entropy requests 
+Periodic refill 
+
+KeyGenerator
+Files: backend/src/crypto/KeyGenerator.cpp/h
+Responsibility:
+Generate 256-bit cryptographic keys 
+PBKDF2-SHA256 key derivation 
+Salt generation 
+
+Encryptor
+Files: backend/src/crypto/Encryptor.cpp/h
+Responsibility:
+AES-GCM encryption 
+AES-GCM decryption 
+IV generation 
+Authentication tag handling 
+
+Hasher
+Files: backend/src/crypto/Hasher.cpp/h
+Responsibility:
+SHA-256 hashing 
+Hash utilities 
+Integrity verification 
+
+Logger
+Files: backend/src/Logger.cpp/h
+Responsibility:
+Thread-safe logging 
+Timestamped events 
+INFO / WARN / ERROR levels 
+Hardware and application event logging 
+
+Config
+Files: backend/src/Config.cpp/h
+Responsibility:
+Load/save configuration 
+Default settings 
+Environment overrides 
+Configuration includes:
+COM Port 
+Baud Rate 
+Entropy Source 
+Test Sizes 
+Log Path 
+
+Analyzer Modules (Python)
+entropy_analyzer.py
+Responsibility:
+Accept entropy data 
+Execute requested statistical tests 
+Return JSON results 
+Supports Quick and Full analysis modes 
+
+nist_tests.py
+Responsibility:
+Statistical analysis modules.
+Quick Mode
+Monobit Frequency 
+Block Frequency 
+Runs Test 
+Byte Distribution 
+Full Mode
+Complete NIST STS implementation 
+Additional statistical tests 
+
+Frontend Modules (HTML/CSS/JS)
+index.html
+Responsibility:
+Single-page application.
+Pages:
+Home 
+Encryption 
+Key Generation 
+Settings 
+
+home.js
+Responsibility:
+Hardware status 
+Entropy source indicator 
+Terminal output 
+System information 
+Statistical test display 
+
+encryption.js
+Responsibility:
+File upload 
+AES encryption/decryption 
+Progress display 
+Download handling 
+
+keygen.js
+Responsibility:
+Key generation 
+Password-based key derivation 
+Key export 
+
+settings.js
+Responsibility:
+Backend configuration 
+COM selection 
+Test mode 
+Runtime settings 
+
+api.js
+Responsibility:
+Backend communication 
+Fetch wrapper 
+Error handling 
+
+app.js
+Responsibility:
+Application initialization 
+Navigation 
+Global state 
+Event management 
+
+style.css
+Responsibility:
+Responsive layout 
+Dark/light theme 
+Terminal styling 
+Component styling 
+
+6. Communication Protocols
+Hardware ↔ C++ Backend
+Medium: Serial (USB) 
+Baud Rate: 115200 
+Protocol: Binary 
+Format: [0xAA][Random Byte] 
+Validation: Sync marker verification 
+Fallback: Automatic switch to OpenSSL entropy source 
+
+C++ Backend ↔ Python Analyzer
+Medium: Subprocess (stdin/stdout) 
+Protocol: JSON 
+Input: Raw entropy bytes 
+Output: Statistical analysis results 
+Modes: 
+Quick Statistical Check 
+Full NIST STS Analysis 
+
+C++ Backend ↔ Frontend
+Medium: HTTP (REST API) 
+Format: JSON 
+Port: 8080 (configurable) 
+File Upload: multipart/form-data 
+Frontend: Served directly by the backend
+7. Feature Summary (v1.0)
+Optional (Post-v1.0)
+
+8. Final Notes
+Development Order
+Hardware Firmware (Completed) 
+SerialEntropySource 
+OpenSSLEntropySource 
+IEntropySource Interface 
+EntropyCollector 
+EntropyPool 
+Cryptographic Modules 
+KeyGenerator 
+Encryptor 
+Hasher 
+WebServer 
+Python Analyzer 
+Frontend 
+Integration 
+Testing 
+Documentation 
+
+Layered Architecture
+Hardware
+    │
+    ▼
+Entropy Sources
+    │
+    ▼
+Entropy Collector
+    │
+    ▼
+Entropy Pool
+    │
+    ├────────► Cryptographic Modules
+    │
+    └────────► Python Analyzer
+              │
+              ▼
+          Web Server
+              │
+              ▼
+          Frontend
+
+Design Principles
+Modular architecture 
+Hardware-first entropy generation 
+Automatic software fallback 
+Layer separation 
+Replaceable entropy sources 
+Independent cryptographic modules 
+Single responsibility per module 
+Thread-safe entropy management 
+Platform-independent backend 
+Extensible application layer 
+
+Primary Applications (v1.0)
+Hardware-backed cryptographic key generation 
+AES-GCM image encryption 
+AES-GCM image decryption 
+Statistical entropy analysis 
+Future applications should consume entropy through the Entropy Pool without modifying lower layers.
+
+Key Differentiators
+Hardware-backed PseudoQuantum entropy source 
+Modular entropy service architecture 
+Multi-language implementation (C++, Python, JavaScript) 
+Hardware and software entropy abstraction 
+Statistical validation pipeline 
+Cryptographic application layer 
+Portfolio-ready project structure 
+Professional software engineering practices
