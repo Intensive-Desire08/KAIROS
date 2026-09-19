@@ -1,0 +1,26 @@
+{
+  "name": "pseudoquantumentropy",
+  "version": "1.0.0",
+  "description": "&lt;placeholder>",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Intensive-Desire08/PseudoQuantumEntropy.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Intensive-Desire08/PseudoQuantumEntropy/issues"
+  },
+  "homepage": "https://github.com/Intensive-Desire08/PseudoQuantumEntropy#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.4.0"
+  }
+}

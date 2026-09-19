@@ -1,0 +1,7 @@
+{
+    "log": {
+        "file": "logs/backend.log",
+        "level": "INFO",
+        "console_output": true
+    }
+}

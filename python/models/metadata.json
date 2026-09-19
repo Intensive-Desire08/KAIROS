@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "trained_at": "2026-09-04T10:47:05Z",
+  "dataset": "synthetic-benign-dev",
+  "features": [
+    "data_length",
+    "protocol_encoded",
+    "packet_rate",
+    "avg_packet_size",
+    "destination_diversity",
+    "failed_logins",
+    "session_duration",
+    "total_packets"
+  ],
+  "parameters": {
+    "n_estimators": 100,
+    "contamination": 0.01,
+    "max_samples": "auto",
+    "random_state": 42,
+    "bootstrap": false,
+    "n_jobs": -1,
+    "warm_start": false
+  },
+  "validation": {
+    "false_positive_rate": 0.049916666666666665,
+    "test_size": 0.2
+  },
+  "score_calibration": {
+    "score_median": -0.4325246108984425,
+    "score_p01": -0.6805184069593029
+  },
+  "training_data": {
+    "samples": 48000,
+    "features": 8
+  }
+}

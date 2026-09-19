@@ -1,0 +1,12 @@
+{
+  "name": "pseudoquantumentropy",
+  "version": "0.2.alpha.build.01",
+  "description": "PseudoQuantum Entropy Service with Cryptographic Applications",
+  "homepage": "https://github.com/Intensive-Desire08/PseudoQuantumEntropy",
+  "dependencies": [
+    "boost-asio",
+    "boost-system",
+    "openssl",
+    "nlohmann-json"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+    "serial": {
+        "port": "COM3",
+        "baud_rate": 115200,
+        "timeout_ms": 5000
+    },
+    "entropy": {
+        "source": "auto",
+        "pool_buffer_size": 4096,
+        "pool_refill_threshold": 2048
+    },
+    "http": {
+        "port": 8080
+    },
+    "analysis": {
+        "test_mode": "quick",
+        "test_size": 1024
+    },
+    "server": {
+        "frontend_path": "./frontend",
+        "max_upload_size": 10485760
+    },
+    "crypto": {
+        "key_size": 256,
+        "salt_size": 32,
+        "iterations": 100000
+    }
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Entropy Analysis Results",
+  "type": "object",
+  "required": ["timestamp", "mode", "total_bytes", "test_results"],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "description": "UTC ISO timestamp for the result set"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["quick", "full"]
+    },
+    "total_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "status": {
+      "type": "string",
+      "description": "Overall status of the analysis"
+    },
+    "error": {
+      "type": ["string", "null"],
+      "description": "Optional error message"
+    },
+    "test_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "p_value", "pass", "statistic"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "p_value": {
+            "type": ["number", "null"]
+          },
+          "pass": {
+            "type": "boolean"
+          },
+          "statistic": {
+            "type": ["number", "string", "null"]
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "skipped": {
+            "type": "boolean",
+            "default": false
+          },
+          "message": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "kairos-gateway",
+  "version": "1.0.0",
+  "description": "KAIROS Cryptographic Gateway — Node.js Gateway + Dynamic Threat Response Engine",
+  "main": "server.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0"
+  }
+}

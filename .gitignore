@@ -1,0 +1,147 @@
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+python/logs/*.log
+nodejs/logs/*.log
+nodejs/data/blocklist.json
+.env
+*.egg-info/
+
+
+# Document files (your report)
+*.docx
+*.doc
+
+# Build directories
+build/
+bin/
+obj/
+
+# Generated headers
+build_config.h
+
+# vcpkg artifacts (optional - depends on your approach)
+# vcpkg_installed/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+*.pid
+
+# Compiler outputs
+*.o
+*.exe
+*.out
+*.a
+*.so
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Local config (if any)
+config/local_*.json
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+/screenshots/
+
+
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Python environments
+.venv/
+venv/
+env/
+
+# Logs
+*.log
+python/logs/
+nodejs/logs/
+
+# Generated/runtime data
+nodejs/data/blocklist.json
+
+# Python packages
+*.egg-info/
+
+# Document files
+*.docx
+*.doc
+
+# Build directories
+build/
+bin/
+obj/
+
+# Generated headers
+build_config.h
+
+# Compiler outputs
+*.o
+*.exe
+*.out
+*.a
+*.so
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# TypeScript
+*.tsbuildinfo
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/
+screenshots/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS junk
+.DS_Store
+Thumbs.db
+.Rhistory
+.RData
+.Rproj.user/
+
+# Temporary files
+*.tmp
+*.bak
+*.pid
+
+# Local configuration
+config/local_*.json

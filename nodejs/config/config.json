@@ -1,0 +1,83 @@
+{
+  "gateway": {
+    "port": 3000,
+    "host": "0.0.0.0",
+    "tls": {
+      "enabled": false,
+      "cert_path": "./certs/server.crt",
+      "key_path": "./certs/server.key"
+    }
+  },
+
+  "session": {
+    "default_lifetime_seconds": 300,
+    "max_lifetime_seconds": 3600,
+    "cleanup_interval_seconds": 60
+  },
+
+  "ml": {
+    "url": "http://127.0.0.1:5000",
+    "timeout_ms": 1000,
+    "fallback_score": 0.02,
+    "degradation_threshold": 3,
+    "shutdown_on_failure": false,
+    "failure_threshold_seconds": 600
+  },
+
+  "thresholds": {
+    "green": 0.25,
+    "yellow": 0.50,
+    "orange": 0.75,
+    "red": 1.00
+  },
+
+  "attack_labels": {
+    "dos_threshold": 1000,
+    "bruteforce_threshold": 10,
+    "portscan_threshold": 50,
+    "activation_threshold": 0.50
+  },
+
+  "policy": {
+    "yellow_actions": ["verbose_logging"],
+    "orange_actions": ["rotate_key", "reduce_lifetime", "alert_admin"],
+    "red_actions": ["rotate_key", "rate_limit", "force_re_auth", "alert_admin_urgent"],
+    "dos_actions": ["block_ip"],
+    "bruteforce_actions": ["lock_account", "block_ip"],
+    "portscan_actions": ["block_ip", "verbose_logging"]
+  },
+
+  "severity_overrides": {
+    "full_reset_threshold": 0.85,
+    "label_activation_threshold": 0.50
+  },
+
+  "action_parameters": {
+    "rate_limit_default": 100,
+    "block_duration_seconds": 7200,
+    "orange_key_lifetime_seconds": 60,
+    "red_key_lifetime_seconds": 30,
+    "blocklist_persistence_file": "./data/blocklist.json"
+  },
+
+  "confidence": {
+    "enabled": false,
+    "min_confidence_for_block": 0.20
+  },
+
+  "entropy": {
+    "pool_path": "../entropy-pool/build/entropy_pool.so"
+  },
+
+  "data": {
+    "device_registry_path": "./data/devices.json",
+    "log_path": "./logs/gateway.log",
+    "log_level": "info"
+  },
+
+  "websocket": {
+    "max_message_size_bytes": 1048576,
+    "idle_timeout_seconds": 60,
+    "ping_interval_seconds": 30
+  }
+}
