@@ -10,8 +10,7 @@ nodejs/data/blocklist.json
 
 
 # Document files (your report)
-*.docx
-*.doc
+CONTEXT.md
 
 # Build directories
 build/
@@ -94,6 +93,7 @@ nodejs/data/blocklist.json
 # Document files
 *.docx
 *.doc
+!Project summary.docx
 
 # Build directories
 build/
