@@ -94,6 +94,8 @@ nodejs/data/blocklist.json
 *.docx
 *.doc
 !Project summary.docx
+!docs/*.docx
+!docs/*.doc
 
 # Build directories
 build/
