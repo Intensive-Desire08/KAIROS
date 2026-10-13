@@ -82,6 +82,7 @@ bool WebServer::start() {
         setupRoutes();
         
         // Start server in background thread
+        startTime = std::chrono::steady_clock::now();
         running = true;
         serverThread = std::thread([this]() {
             std::cout << "[WebServer] Starting on " << host << ":" << port << std::endl;
@@ -305,11 +306,25 @@ void WebServer::handleStatus(const httplib::Request& req, httplib::Response& res
     entropyStatus["source_type"] = entropyCollector.getSourceType();
     entropyStatus["available_bytes"] = entropyCollector.getAvailableBytes();
     entropyStatus["total_generated"] = entropyCollector.getTotalBytesGenerated();
+    entropyStatus["total_bytes_generated"] = entropyCollector.getTotalBytesGenerated();
     entropyStatus["pool_size"] = entropyCollector.getPoolSize();
-    entropyStatus["speed"] = entropyCollector.getSpeed();
+    entropyStatus["buffer_size"] = entropyCollector.getPoolSize();
+    double speedVal = entropyCollector.getSpeed();
+    entropyStatus["speed"] = speedVal;
+    entropyStatus["current_speed_bps"] = speedVal * 8.0;
+    std::ostringstream ssSpeed;
+    if (speedVal >= 1024.0 * 1024.0) {
+        ssSpeed << std::fixed << std::setprecision(2) << (speedVal / (1024.0 * 1024.0)) << " MB/s";
+    } else if (speedVal >= 1024.0) {
+        ssSpeed << std::fixed << std::setprecision(1) << (speedVal / 1024.0) << " KB/s";
+    } else {
+        ssSpeed << std::fixed << std::setprecision(0) << speedVal << " B/s";
+    }
+    entropyStatus["speed_formatted"] = ssSpeed.str();
     entropyStatus["hardware_available"] = entropyCollector.isHardwareAvailable();
     entropyStatus["openssl_available"] = entropyCollector.isOpenSSLAvailable();
     entropyStatus["whitening"] = entropyCollector.getWhiteningAlgorithm();
+    entropyStatus["whitening_algorithm"] = entropyCollector.getWhiteningAlgorithm();
     entropyStatus["preferred_source"] = entropyCollector.getPreferredSourceType();
     response["entropy"] = entropyStatus;
     
@@ -319,6 +334,10 @@ void WebServer::handleStatus(const httplib::Request& req, httplib::Response& res
     serverStatus["port"] = port;
     serverStatus["active_connections"] = activeConnections.load();
     serverStatus["total_requests"] = totalRequests.load();
+    auto uptimeSeconds = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::steady_clock::now() - startTime
+    ).count();
+    serverStatus["uptime_seconds"] = uptimeSeconds;
     response["server"] = serverStatus;
     
     res.set_content(response.dump(2), "application/json");
@@ -357,12 +376,14 @@ void WebServer::handleGetEntropy(const httplib::Request& req, httplib::Response&
         // Get entropy
         std::vector<uint8_t> entropy = entropyCollector.getEntropy(numBytes);
         
-        // Return as hex
+        // Return as hex and base64
         nlohmann::json response;
         response["status"] = "ok";
         response["bytes"] = numBytes;
+        response["byte_count"] = numBytes;
         response["data"] = hexEncode(entropy);
         response["hex"] = hexEncode(entropy); // Alias for convenience
+        response["base64"] = base64Encode(entropy); // Alias for base64 decoding
         
         res.set_content(response.dump(2), "application/json");
         
@@ -596,13 +617,17 @@ void WebServer::handleTest(const httplib::Request& req, httplib::Response& res) 
 
         std::string pythonExe = "python";
         std::filesystem::path projectRoot = analyzerScript.empty() ? std::filesystem::current_path() : analyzerScript.parent_path().parent_path();
-        std::filesystem::path pythonCandidate = projectRoot / ".venv" / "Scripts" / "python.exe";
-        if (std::filesystem::exists(pythonCandidate)) {
-            pythonExe = pythonCandidate.string();
-        } else {
-            std::filesystem::path unixPython = "/usr/bin/python3";
-            if (std::filesystem::exists(unixPython)) {
-                pythonExe = unixPython.string();
+        std::vector<std::filesystem::path> pyCandidates = {
+            projectRoot / "python" / ".venv" / "Scripts" / "python.exe",
+            projectRoot / ".venv" / "Scripts" / "python.exe",
+            projectRoot / "python" / ".venv" / "bin" / "python3",
+            projectRoot / ".venv" / "bin" / "python3",
+            "/usr/bin/python3"
+        };
+        for (const auto& cand : pyCandidates) {
+            if (std::filesystem::exists(cand)) {
+                pythonExe = cand.string();
+                break;
             }
         }
 

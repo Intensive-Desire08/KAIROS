@@ -156,81 +156,95 @@ def view_model_status():
 # Feature 2: Preset Scenarios
 # ============================================================================
 def run_preset_scenarios():
-    print("\n--- [2] Real-Time Threat Prediction: Preset Scenarios ---")
-    scenarios = [
-        {
-            "name": "Normal Ambient Telemetry (Standard IoT Keepalive)",
-            "features": ThreatFeatures(
-                data_length=24,
-                protocol="mqtt",
-                packet_rate=4.5,
-                avg_packet_size=128,
-                destination_diversity=1,
-                failed_logins=0,
-            ),
-        },
-        {
-            "name": "Reconnaissance / Stealth Port Scanning",
-            "features": ThreatFeatures(
-                data_length=64,
-                protocol="tcp",
-                packet_rate=35.0,
-                avg_packet_size=48,
-                destination_diversity=65,
-                failed_logins=0,
-            ),
-        },
-        {
-            "name": "High-Rate SYN Flood / Denial of Service (DoS)",
-            "features": ThreatFeatures(
-                data_length=1500,
-                protocol="tcp",
-                packet_rate=1450.0,
-                avg_packet_size=60,
-                destination_diversity=3,
-                failed_logins=0,
-            ),
-        },
-        {
-            "name": "Credential Stuffing / SSH Brute Force Attack",
-            "features": ThreatFeatures(
-                data_length=320,
-                protocol="ssh",
-                packet_rate=22.0,
-                avg_packet_size=256,
-                destination_diversity=1,
-                failed_logins=28,
-            ),
-        },
-    ]
+    while True:
+        print("\n--- [2] Real-Time Threat Prediction: Preset Scenarios ---")
+        scenarios = [
+            {
+                "name": "Normal Ambient Telemetry (Standard IoT Keepalive)",
+                "features": ThreatFeatures(
+                    data_length=24,
+                    protocol="websocket",
+                    packet_rate=4.5,
+                    avg_packet_size=128,
+                    destination_diversity=1,
+                    failed_logins=0,
+                    session_duration=120.0,
+                    total_packets=54,
+                ),
+            },
+            {
+                "name": "Reconnaissance / Stealth Port Scanning",
+                "features": ThreatFeatures(
+                    data_length=64,
+                    protocol="tcp",
+                    packet_rate=35.0,
+                    avg_packet_size=48,
+                    destination_diversity=65,
+                    failed_logins=0,
+                    session_duration=15.0,
+                    total_packets=525,
+                ),
+            },
+            {
+                "name": "High-Rate SYN Flood / Denial of Service (DoS)",
+                "features": ThreatFeatures(
+                    data_length=1500,
+                    protocol="tcp",
+                    packet_rate=1450.0,
+                    avg_packet_size=60,
+                    destination_diversity=3,
+                    failed_logins=0,
+                    session_duration=5.0,
+                    total_packets=7250,
+                ),
+            },
+            {
+                "name": "Credential Stuffing / SSH Brute Force Attack",
+                "features": ThreatFeatures(
+                    data_length=320,
+                    protocol="tcp",
+                    packet_rate=22.0,
+                    avg_packet_size=256,
+                    destination_diversity=1,
+                    failed_logins=28,
+                    session_duration=60.0,
+                    total_packets=1320,
+                ),
+            },
+        ]
 
-    for idx, sc in enumerate(scenarios, 1):
-        print(f"  [{idx}] {sc['name']}")
-    
-    choice = input("\nSelect scenario [1-4] > ").strip()
-    try:
-        sc_idx = int(choice) - 1
-        if 0 <= sc_idx < len(scenarios):
-            target_sc = scenarios[sc_idx]
-            req = ThreatRequest(
-                session_id=f"sim_sess_{int(time.time())}",
-                source="edge_node_04",
-                target="gateway_base_01",
-                plaintext="Telemetry Payload",
-                features=target_sc["features"]
-            )
-            resp = predict_threat(req)
-            print(f"\nScenario: {target_sc['name']}")
-            print(f"  Raw Score       : {resp['raw_anomaly_score']:.4f}")
-            print(f"  Threat Score    : {resp['threat_score']:.4f}")
-            print(f"  Threat Level    : {resp['level'].upper()}")
-            print(f"  Confidence      : {resp['confidence'] * 100.0:.1f}%")
-            print(f"  Attack Label    : {resp['attack_label'] or 'None (Benign/Ambient)'}")
-            print_gauge(resp['threat_score'], resp['level'])
-        else:
-            print("Invalid scenario index.")
-    except ValueError:
-        print("Invalid input.")
+        for idx, sc in enumerate(scenarios, 1):
+            print(f"  [{idx}] {sc['name']}")
+        print("  [0] Return to Main Menu")
+        
+        choice = input("\nSelect scenario [0-4] > ").strip()
+        if choice == "0":
+            break
+        try:
+            sc_idx = int(choice) - 1
+            if 0 <= sc_idx < len(scenarios):
+                target_sc = scenarios[sc_idx]
+                req = ThreatRequest(
+                    session_id=f"sim_sess_{int(time.time())}",
+                    source="edge_node_04",
+                    target="gateway_base_01",
+                    plaintext="Telemetry Payload",
+                    features=target_sc["features"]
+                )
+                resp = predict_threat(req)
+                print(f"\nScenario: {target_sc['name']}")
+                print(f"  Raw Score       : {resp['raw_anomaly_score']:.4f}")
+                print(f"  Threat Score    : {resp['threat_score']:.4f}")
+                print(f"  Threat Level    : {resp['level'].upper()}")
+                print(f"  Confidence      : {resp['confidence'] * 100.0:.1f}%")
+                print(f"  Attack Label    : {resp['attack_label'] or 'None (Benign/Ambient)'}")
+                print_gauge(resp['threat_score'], resp['level'])
+            else:
+                print("Invalid scenario index. Please select [0-4].")
+        except ValueError:
+            print("Invalid input. Please enter a number between 0 and 4.")
+
+        input("\nPress Enter to continue...")
 
 
 # ============================================================================
@@ -240,16 +254,19 @@ def run_custom_input():
     print("\n--- [3] Custom Telemetry Input ---")
     try:
         data_len = int(input("Data Length (bytes) [default 32]: ").strip() or "32")
-        proto = input("Protocol [tcp/udp/mqtt/websocket, default tcp]: ").strip() or "tcp"
+        proto = input("Protocol [tcp/udp/icmp/websocket, default tcp]: ").strip() or "tcp"
         pkt_rate = float(input("Packet Rate (pkts/sec) [default 10.0]: ").strip() or "10.0")
         avg_sz = float(input("Avg Packet Size (bytes) [default 256.0]: ").strip() or "256.0")
         dest_div = int(input("Destination Diversity (unique hosts) [default 1]: ").strip() or "1")
         fails = int(input("Failed Logins in Window [default 0]: ").strip() or "0")
+        sess_dur = float(input("Session Duration (seconds) [default 120.0]: ").strip() or "120.0")
+        tot_pkts = int(input("Total Packets in Session [default 50]: ").strip() or "50")
 
         req = ThreatRequest(
             session_id="custom_sess_01",
             source="custom_device",
             target="kairos_gateway",
+            plaintext="Custom Telemetry Payload",
             features=ThreatFeatures(
                 data_length=data_len,
                 protocol=proto,
@@ -257,10 +274,13 @@ def run_custom_input():
                 avg_packet_size=avg_sz,
                 destination_diversity=dest_div,
                 failed_logins=fails,
+                session_duration=sess_dur,
+                total_packets=tot_pkts,
             )
         )
         resp = predict_threat(req)
         print("\n--- Prediction Result ---")
+        print(f"  Raw Score    : {resp['raw_anomaly_score']:.4f}")
         print(f"  Threat Score : {resp['threat_score']:.4f} / 1.0000")
         print(f"  Threat Level : {resp['level'].upper()}")
         print(f"  Confidence   : {resp['confidence'] * 100.0:.1f}%")
@@ -288,29 +308,38 @@ def run_batch_simulation():
             div = 1
             fails = 0
             sz = float(np.random.uniform(100, 300))
+            dur = float(np.random.uniform(45, 300))
+            pkts = max(1, int(rate * dur / 10))
         elif 18 <= i < 28:
             # Port scan
             rate = float(np.random.uniform(30, 60))
             div = int(np.random.randint(45, 90))
             fails = 0
             sz = 52.0
+            dur = float(np.random.uniform(5, 20))
+            pkts = max(10, int(rate * dur))
         elif 28 <= i < 40:
             # DoS
             rate = float(np.random.uniform(900, 1800))
             div = 2
             fails = 0
             sz = 64.0
+            dur = float(np.random.uniform(2, 10))
+            pkts = max(100, int(rate * dur))
         else:
             # Recovery
             rate = float(np.random.uniform(5, 15))
             div = 1
             fails = 0
             sz = float(np.random.uniform(120, 250))
+            dur = float(np.random.uniform(30, 180))
+            pkts = max(1, int(rate * dur / 10))
 
         req = ThreatRequest(
             session_id=f"flow_{i}",
             source="iot_cluster",
             target="base_station",
+            plaintext="Simulated Stream Packet",
             features=ThreatFeatures(
                 data_length=int(sz),
                 protocol="tcp",
@@ -318,6 +347,8 @@ def run_batch_simulation():
                 avg_packet_size=sz,
                 destination_diversity=div,
                 failed_logins=fails,
+                session_duration=dur,
+                total_packets=pkts,
             )
         )
         resp = predict_threat(req)
@@ -421,7 +452,7 @@ def run_training_pipeline():
 
         print("[Train] Generating 50,000 synthetic training samples...")
         df = generate_synthetic_benign(50000)
-        train_df, val_df = train_val_split(df, val_ratio=0.20)
+        train_df, val_df = train_val_split(df, val_fraction=0.20)
         
         print(f"[Train] Fitting StandardScaler and IsolationForest (n=100)...")
         model, scaler = train_model(train_df, MODEL_PARAMS)
@@ -430,25 +461,35 @@ def run_training_pipeline():
         calib = compute_score_calibration(model, scaler, train_df)
         
         attacks = generate_synthetic_attacks(3000)
-        eval_report = full_evaluation_report(model, scaler, val_df, attacks, threshold=0.50)
+        eval_report = full_evaluation_report(model, scaler, val_df, attacks)
         
         print("\nEvaluation Results:")
         print(f"  False Positive Rate: {eval_report['false_positive_rate']*100:.2f}% (Target < 5%)")
         print(f"  Detection Rate     : {eval_report['detection_rate']*100:.2f}%")
         print(f"  Passes FPR Target  : {eval_report['passes_fpr_target']}")
-        print(f"  Precision: DoS={eval_report['label_precision']['DOS']}, BruteForce={eval_report['label_precision']['BRUTE_FORCE']}, PortScan={eval_report['label_precision']['PORT_SCAN']}")
+        if "label_precision" in eval_report:
+            print(f"  Precision: DoS={eval_report['label_precision'].get('DOS', 0.0):.2f}, BruteForce={eval_report['label_precision'].get('BRUTE_FORCE', 0.0):.2f}, PortScan={eval_report['label_precision'].get('PORT_SCAN', 0.0):.2f}")
         
         models_dir = Path(__file__).resolve().parent / "models"
         joblib.dump(model, models_dir / "isolation_forest.pkl")
         joblib.dump(scaler, models_dir / "scaler.pkl")
         
         meta = {
+            "version": "1.0.0",
             "trained_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "parameters": MODEL_PARAMS,
+            "score_calibration": calib,
             "calibration": calib,
-            "evaluation": eval_report,
+            "validation": {
+                "false_positive_rate": eval_report["false_positive_rate"],
+                "test_size": 0.20,
+            },
+            "training_data": {
+                "samples": len(train_df),
+                "features": len(FEATURE_ORDER),
+            },
         }
-        with open(models_dir / "metadata.json", "w") as fp:
+        with open(models_dir / "metadata.json", "w", encoding="utf-8") as fp:
             json.dump(meta, fp, indent=2)
         
         print(f"[Train] Saved artifacts to {models_dir}")
@@ -461,14 +502,15 @@ def run_training_pipeline():
 # ============================================================================
 def run_validation_suite():
     print("\n--- [7] Run Pytest Validation Suite ---")
-    import pytest
+    import subprocess
     tests_dir = str(Path(__file__).resolve().parent / "tests")
-    print(f"Executing pytest in {tests_dir}...")
-    ret = pytest.main(["-v", tests_dir])
-    if ret == 0:
+    print(f"Executing pytest in isolated subprocess ({tests_dir})...")
+    ret = subprocess.run([sys.executable, "-m", "pytest", "-v", tests_dir])
+    if ret.returncode == 0:
         print("\n[SUCCESS] All unit and integration tests passed!")
     else:
-        print(f"\n[FAILURE] Pytest exited with code {ret}")
+        print(f"\n[FAILURE] Pytest exited with code {ret.returncode}")
+    model_state.load()
 
 
 # ============================================================================
@@ -488,6 +530,7 @@ def launch_api_service():
 # Main Loop
 # ============================================================================
 def main():
+    ensure_model_loaded()
     while True:
         print_banner()
         print("  [1] Model Status & Readiness (Architecture, Features, Calibration)")
@@ -503,27 +546,33 @@ def main():
         choice = input("\nEnter choice [0-8] > ").strip()
         if choice == "1":
             view_model_status()
+            input("\nPress Enter to return to main menu...")
         elif choice == "2":
             run_preset_scenarios()
         elif choice == "3":
             run_custom_input()
+            input("\nPress Enter to return to main menu...")
         elif choice == "4":
             run_batch_simulation()
+            input("\nPress Enter to return to main menu...")
         elif choice == "5":
             run_score_distribution()
+            input("\nPress Enter to return to main menu...")
         elif choice == "6":
             run_training_pipeline()
+            input("\nPress Enter to return to main menu...")
         elif choice == "7":
             run_validation_suite()
+            input("\nPress Enter to return to main menu...")
         elif choice == "8":
             launch_api_service()
+            input("\nPress Enter to return to main menu...")
         elif choice == "0":
             print("\nExiting KAIROS ML Bench. Goodbye!\n")
             break
         else:
             print("\nInvalid choice. Please select from 0 to 8.")
-
-        input("\nPress Enter to return to main menu...")
+            input("\nPress Enter to return to main menu...")
 
 
 if __name__ == "__main__":

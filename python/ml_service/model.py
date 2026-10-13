@@ -69,17 +69,17 @@ def raw_anomaly_score(features_scaled: np.ndarray) -> float:
 
 
 # Calibration reference points, populated from training/metadata.json at
-# startup (see load_calibration()). Falls back to uncalibrated defaults if
-# unavailable so the service can still start (Section 10.3).
-_calibration = {"score_median": 0.0, "score_p01": -0.05}
+# startup (see load_calibration()). Falls back to empirical dev baseline if
+# unavailable so the service can still start without saturation.
+_calibration = {"score_median": -0.4287, "score_p01": -0.6850}
 
 
 def load_calibration(metadata: dict) -> None:
-    """Load score calibration reference points written by training/train.py."""
-    cal = metadata.get("score_calibration")
+    """Load score calibration reference points written by training/train.py or ml_menu.py."""
+    cal = metadata.get("score_calibration") or metadata.get("calibration")
     if cal and "score_median" in cal and "score_p01" in cal:
-        _calibration["score_median"] = cal["score_median"]
-        _calibration["score_p01"] = cal["score_p01"]
+        _calibration["score_median"] = float(cal["score_median"])
+        _calibration["score_p01"] = float(cal["score_p01"])
 
 
 def score_to_threat_score(raw_score: float) -> float:

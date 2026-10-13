@@ -19,9 +19,10 @@ class DummyFeatures:
 @pytest.fixture(autouse=True)
 def reset_calibration():
     """Ensure a known calibration for deterministic threat-score tests."""
+    saved_calib = model_module._calibration.copy()
     model_module.load_calibration({"score_calibration": {"score_median": -0.4, "score_p01": -0.8}})
     yield
-    model_module.load_calibration({"score_calibration": {"score_median": 0.0, "score_p01": -0.05}})
+    model_module.load_calibration({"score_calibration": saved_calib})
 
 
 def test_score_to_threat_score_at_median_is_zero():

@@ -256,6 +256,7 @@ private:
   // Statistics
   std::atomic<size_t> activeConnections;
   std::atomic<size_t> totalRequests;
+  std::chrono::steady_clock::time_point startTime;
 
   // Thread safety
   mutable std::mutex mutex;
