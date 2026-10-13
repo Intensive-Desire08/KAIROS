@@ -4,9 +4,13 @@
 #include <vector>
 #include <cstdint>
 #include <string>
+#include <thread>
+#include <atomic>
 
 // Forward declarations
 class IEntropySource;
+class SerialEntropySource;
+class OpenSSLEntropySource;
 class EntropyPool;
 
 /**
@@ -23,7 +27,7 @@ class EntropyPool;
  * @code
  * EntropyCollector collector;
  * collector.detectSources();
- * collector.initialize("COM3", 115200);
+ * collector.initialize("COM3", 921600);
  * auto bytes = collector.getEntropy(32);
  * @endcode
  */
@@ -52,13 +56,13 @@ public:
      * Tries hardware first, falls back to OpenSSL if hardware is unavailable.
      * 
      * @param port Serial port name (e.g., "COM3" on Windows)
-     * @param baudRate Serial baud rate (default: 115200)
+     * @param baudRate Serial baud rate (default: 921600)
      * @param bufferSize Size of entropy pool buffer (default: 4096)
      * @return true if initialization succeeded
      */
     bool initialize(
         const std::string& port = "COM3",
-        unsigned int baudRate = 115200,
+        unsigned int baudRate = 921600,
         size_t bufferSize = 4096
     );
 
@@ -74,7 +78,7 @@ public:
     bool initializeWithSource(
         const std::string& sourceType,
         const std::string& port = "COM3",
-        unsigned int baudRate = 115200,
+        unsigned int baudRate = 921600,
         size_t bufferSize = 4096
     );
 
@@ -144,6 +148,17 @@ public:
      * @return size_t Total bytes generated
      */
     size_t getTotalBytesGenerated() const;
+    
+    /**
+     * @brief Get the current entropy generation speed in bytes/sec
+     * @return double Speed
+     */
+    double getSpeed() const;
+
+    /**
+     * @brief Reset the speed calculation
+     */
+    void resetSpeed();
 
     /**
      * @brief Reset the byte counter
@@ -198,6 +213,28 @@ public:
      */
     unsigned int getBaudRate() const;
 
+    /**
+     * @brief Switch active entropy source manually ("hardware", "openssl", or "auto")
+     * @param sourceType Target source type
+     * @return true if switched successfully
+     */
+    bool switchSourceType(const std::string& sourceType);
+
+    /**
+     * @brief Get preferred source type ("hardware", "openssl", or "auto")
+     */
+    std::string getPreferredSourceType() const;
+
+    /**
+     * @brief Set whitening algorithm on the hardware entropy source ("lfsr" or "sha256")
+     */
+    void setWhiteningAlgorithm(const std::string& algo);
+
+    /**
+     * @brief Get current whitening algorithm name ("lfsr" or "sha256")
+     */
+    std::string getWhiteningAlgorithm() const;
+
 private:
     /**
      * @brief Initialize the hardware entropy source
@@ -225,8 +262,15 @@ private:
      */
     void cleanup();
 
-    // Entropy source
+    /**
+     * @brief Background loop to monitor source health
+     */
+    void sourceMonitorLoop();
+
+    // Entropy sources
     std::shared_ptr<IEntropySource> entropySource;
+    std::shared_ptr<SerialEntropySource> hardwareSource;
+    std::shared_ptr<OpenSSLEntropySource> openSSLSource;
     std::unique_ptr<EntropyPool> entropyPool;
 
     // Configuration
@@ -235,13 +279,19 @@ private:
     size_t bufferSize;
 
     // State
-    bool initialized;
+    std::atomic<bool> initialized;
     std::string activeSourceType;
     std::string activeSourceName;
+    std::string preferredSourceType = "auto";
+    std::string configuredWhitening = "lfsr";
 
     // Hardware detection status
-    bool hardwareAvailable;
-    bool openSSLAvailable;
+    std::atomic<bool> hardwareAvailable;
+    std::atomic<bool> openSSLAvailable;
+    
+    // Monitoring
+    std::atomic<bool> monitorRunning;
+    std::thread monitorThread;
 
     // Constants
     static constexpr size_t DEFAULT_BUFFER_SIZE = 4096;

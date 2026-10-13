@@ -261,7 +261,7 @@ private:
   mutable std::mutex mutex;
 
   // Constants
-  static constexpr const char *API_VERSION = "v0.2.alpha.build.01";
+  static constexpr const char *API_VERSION = "v1.0";
   static constexpr size_t MAX_ENTROPY_REQUEST = 1024 * 1024;  // 1MB
   static constexpr size_t MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB
   static constexpr unsigned int DEFAULT_PORT = 8080;

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(PseudoQuantumEntropy VERSION 0.2.alpha.build.01 LANGUAGES CXX)
+project(PseudoQuantumEntropy VERSION 1.0 LANGUAGES CXX)
 
 # ============================================================================
 # Compiler and Standard Settings

@@ -172,7 +172,7 @@ public:
 
     /**
      * @brief Get the serial baud rate
-     * @return unsigned int Baud rate (e.g., 115200)
+     * @return unsigned int Baud rate (e.g., 921600)
      */
     unsigned int getSerialBaudRate() const;
 

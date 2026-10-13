@@ -154,8 +154,8 @@ void Logger::warn(const std::string& message) {
     log(Level::WARN, message);
 }
 
-void Logger::error(const std::string& message) {
-    log(Level::ERROR, message);
+void Logger::errorMsg(const std::string& message) {
+    log(Level::ERR, message);
 }
 
 void Logger::fatal(const std::string& message) {
@@ -276,7 +276,7 @@ std::string Logger::levelToString(Level level) const {
         case Level::DEBUG: return "DEBUG";
         case Level::INFO:  return "INFO";
         case Level::WARN:  return "WARN";
-        case Level::ERROR: return "ERROR";
+        case Level::ERR: return "ERROR";
         case Level::FATAL: return "FATAL";
         case Level::OFF:   return "OFF";
         default:           return "UNKNOWN";
@@ -292,7 +292,7 @@ void Logger::writeMessage(const std::string& formattedMessage) {
     else if (formattedMessage.find("[DEBUG]") != std::string::npos) level = Level::DEBUG;
     else if (formattedMessage.find("[INFO]") != std::string::npos) level = Level::INFO;
     else if (formattedMessage.find("[WARN]") != std::string::npos) level = Level::WARN;
-    else if (formattedMessage.find("[ERROR]") != std::string::npos) level = Level::ERROR;
+    else if (formattedMessage.find("[ERROR]") != std::string::npos) level = Level::ERR;
     else if (formattedMessage.find("[FATAL]") != std::string::npos) level = Level::FATAL;
     
     // Write to console
@@ -310,7 +310,7 @@ void Logger::writeMessage(const std::string& formattedMessage) {
 
 void Logger::writeToConsole(const std::string& message, Level level) {
     // Use cerr for ERROR and FATAL, cout for everything else
-    if (level >= Level::ERROR) {
+    if (level >= Level::ERR) {
         std::cerr << message << std::endl;
     } else {
         // If console supports colors, use them
@@ -379,7 +379,7 @@ std::string Logger::getColorCode(Level level) const {
         case Level::DEBUG: return "\033[36m";  // Cyan
         case Level::INFO:  return "\033[32m";  // Green
         case Level::WARN:  return "\033[33m";  // Yellow
-        case Level::ERROR: return "\033[31m";  // Red
+        case Level::ERR: return "\033[31m";  // Red
         case Level::FATAL: return "\033[1;31m"; // Bold Red
         default:           return "\033[0m";   // Reset
     }

@@ -8,6 +8,10 @@
 #include <memory>
 #include <sstream>
 
+#ifdef ERROR
+#undef ERROR
+#endif
+
 /**
  * @brief Thread-safe logging system with multiple output destinations
  * 
@@ -36,7 +40,7 @@ public:
         DEBUG = 1,
         INFO = 2,
         WARN = 3,
-        ERROR = 4,
+        ERR = 4,
         FATAL = 5,
         OFF = 6
     };
@@ -128,7 +132,7 @@ public:
      * @brief Log a message at ERROR level
      * @param message Message to log
      */
-    void error(const std::string& message);
+    void errorMsg(const std::string& message);
 
     /**
      * @brief Log a message at FATAL level
@@ -301,7 +305,7 @@ private:
 #define LOG_DEBUG(msg) Logger::instance().logWithLocation(Logger::Level::DEBUG, msg, __FILE__, __LINE__, __FUNCTION__)
 #define LOG_INFO(msg) Logger::instance().logWithLocation(Logger::Level::INFO, msg, __FILE__, __LINE__, __FUNCTION__)
 #define LOG_WARN(msg) Logger::instance().logWithLocation(Logger::Level::WARN, msg, __FILE__, __LINE__, __FUNCTION__)
-#define LOG_ERROR(msg) Logger::instance().logWithLocation(Logger::Level::ERROR, msg, __FILE__, __LINE__, __FUNCTION__)
+#define LOG_ERROR(msg) Logger::instance().logWithLocation(Logger::Level::ERR, msg, __FILE__, __LINE__, __FUNCTION__)
 #define LOG_FATAL(msg) Logger::instance().logWithLocation(Logger::Level::FATAL, msg, __FILE__, __LINE__, __FUNCTION__)
 
 /**

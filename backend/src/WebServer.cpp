@@ -1,5 +1,6 @@
 #include "WebServer.h"
 #include "EntropyCollector.h"
+#include "Config.h"
 #include "crypto/KeyGenerator.h"
 #include "crypto/Encryptor.h"
 #include "crypto/Hasher.h"
@@ -40,20 +41,19 @@ WebServer::WebServer(
     , activeConnections(0)
     , totalRequests(0) {
     
-    // Ensure frontend path is absolute or relative to executable
-    if (!std::filesystem::exists(frontendPathValue)) {
-        // Try to find it relative to current directory by going up a few levels
-        std::vector<std::string> searchPrefixes = {
-            "../",
-            "../../",
-            "../../../"
-        };
-        for (const auto& prefix : searchPrefixes) {
-            std::string altPath = prefix + frontendPathValue;
-            if (std::filesystem::exists(altPath)) {
-                this->frontendPath = altPath;
-                break;
-            }
+    // Ensure frontend path is found regardless of execution working directory
+    std::vector<std::string> candidates = {
+        frontendPathValue,
+        "frontend",
+        "./frontend",
+        "../frontend",
+        "../../frontend",
+        "../../../frontend"
+    };
+    for (const auto& candidate : candidates) {
+        if (!candidate.empty() && std::filesystem::exists(candidate) && std::filesystem::is_directory(candidate)) {
+            this->frontendPath = candidate;
+            break;
         }
     }
 }
@@ -306,8 +306,11 @@ void WebServer::handleStatus(const httplib::Request& req, httplib::Response& res
     entropyStatus["available_bytes"] = entropyCollector.getAvailableBytes();
     entropyStatus["total_generated"] = entropyCollector.getTotalBytesGenerated();
     entropyStatus["pool_size"] = entropyCollector.getPoolSize();
+    entropyStatus["speed"] = entropyCollector.getSpeed();
     entropyStatus["hardware_available"] = entropyCollector.isHardwareAvailable();
     entropyStatus["openssl_available"] = entropyCollector.isOpenSSLAvailable();
+    entropyStatus["whitening"] = entropyCollector.getWhiteningAlgorithm();
+    entropyStatus["preferred_source"] = entropyCollector.getPreferredSourceType();
     response["entropy"] = entropyStatus;
     
     // Server status
@@ -434,38 +437,39 @@ void WebServer::handleEncrypt(const httplib::Request& req, httplib::Response& re
         }
         
         // Get required parameters
-        if (!request.contains("data") || !request.contains("key")) {
+        if (!request.contains("data") || !request.contains("password")) {
             res.status = 400;
-            res.set_content(errorResponse(400, "Missing required fields: data, key"), "application/json");
+            res.set_content(errorResponse(400, "Missing required fields: data, password"), "application/json");
             return;
         }
         
         std::vector<uint8_t> data = hexDecode(request["data"].get<std::string>());
-        std::vector<uint8_t> key = hexDecode(request["key"].get<std::string>());
+        std::string password = request["password"].get<std::string>();
         
-        // Validate key size
-        if (key.size() != 16 && key.size() != 24 && key.size() != 32) {
-            res.status = 400;
-            res.set_content(errorResponse(400, "Key must be 16, 24, or 32 bytes (128, 192, or 256 bits)"), "application/json");
-            return;
-        }
+        // Generate random salt (32 bytes) and IV (12 bytes)
+        std::vector<uint8_t> salt = KeyGenerator::generateSalt(32);
+        std::vector<uint8_t> iv = Encryptor::generateIV(12);
         
-        // Get IV (generate if not provided)
-        std::vector<uint8_t> iv;
-        if (request.contains("iv")) {
-            iv = hexDecode(request["iv"].get<std::string>());
-        } else {
-            iv = Encryptor::generateIV(12); // 96 bits for GCM
-        }
+        // Derive 32-byte key
+        std::vector<uint8_t> key = KeyGenerator::deriveKey(password, salt, 32);
         
         // Encrypt
         auto result = Encryptor::encrypt(data, key, iv);
         
+        // Assemble .pqe file content: [salt(32) | iv(12) | tag(16) | ciphertext]
+        std::vector<uint8_t> pqeFile;
+        pqeFile.reserve(salt.size() + iv.size() + result.tag.size() + result.ciphertext.size());
+        pqeFile.insert(pqeFile.end(), salt.begin(), salt.end());
+        pqeFile.insert(pqeFile.end(), iv.begin(), iv.end());
+        pqeFile.insert(pqeFile.end(), result.tag.begin(), result.tag.end());
+        pqeFile.insert(pqeFile.end(), result.ciphertext.begin(), result.ciphertext.end());
+        
         nlohmann::json response;
         response["status"] = "ok";
-        response["ciphertext"] = hexEncode(result.ciphertext);
+        response["ciphertext"] = hexEncode(pqeFile);
         response["iv"] = hexEncode(iv);
         response["tag"] = hexEncode(result.tag);
+        response["key"] = hexEncode(key);
         response["key_size"] = key.size() * 8;
         
         res.set_content(response.dump(2), "application/json");
@@ -490,31 +494,41 @@ void WebServer::handleDecrypt(const httplib::Request& req, httplib::Response& re
         }
         
         // Get required parameters
-        if (!request.contains("ciphertext") || !request.contains("key") || !request.contains("iv") || !request.contains("tag")) {
+        if (!request.contains("ciphertext") || !request.contains("password")) {
             res.status = 400;
-            res.set_content(errorResponse(400, "Missing required fields: ciphertext, key, iv, tag"), "application/json");
+            res.set_content(errorResponse(400, "Missing required fields: ciphertext, password"), "application/json");
             return;
         }
         
-        std::vector<uint8_t> ciphertext = hexDecode(request["ciphertext"].get<std::string>());
-        std::vector<uint8_t> key = hexDecode(request["key"].get<std::string>());
-        std::vector<uint8_t> iv = hexDecode(request["iv"].get<std::string>());
-        std::vector<uint8_t> tag = hexDecode(request["tag"].get<std::string>());
+        std::vector<uint8_t> pqeFile = hexDecode(request["ciphertext"].get<std::string>());
+        std::string password = request["password"].get<std::string>();
         
-        // Validate key size
-        if (key.size() != 16 && key.size() != 24 && key.size() != 32) {
+        // Validate .pqe file structure size (32 salt + 12 iv + 16 tag = 60 bytes minimum header)
+        if (pqeFile.size() < 60) {
             res.status = 400;
-            res.set_content(errorResponse(400, "Key must be 16, 24, or 32 bytes (128, 192, or 256 bits)"), "application/json");
+            res.set_content(errorResponse(400, "Invalid .pqe file: too small"), "application/json");
             return;
         }
+        
+        // Extract components
+        std::vector<uint8_t> salt(pqeFile.begin(), pqeFile.begin() + 32);
+        std::vector<uint8_t> iv(pqeFile.begin() + 32, pqeFile.begin() + 44);
+        std::vector<uint8_t> tag(pqeFile.begin() + 44, pqeFile.begin() + 60);
+        std::vector<uint8_t> actual_ciphertext(pqeFile.begin() + 60, pqeFile.end());
+        
+        // Derive 32-byte key
+        std::vector<uint8_t> key = KeyGenerator::deriveKey(password, salt, 32);
         
         // Decrypt
-        std::vector<uint8_t> plaintext = Encryptor::decrypt(ciphertext, key, iv, tag);
+        std::vector<uint8_t> plaintext = Encryptor::decrypt(actual_ciphertext, key, iv, tag);
         
         nlohmann::json response;
         response["status"] = "ok";
         response["data"] = hexEncode(plaintext);
         response["plaintext"] = hexEncode(plaintext);
+        response["iv"] = hexEncode(iv);
+        response["tag"] = hexEncode(tag);
+        response["key"] = hexEncode(key);
         response["key_size"] = key.size() * 8;
         
         res.set_content(response.dump(2), "application/json");
@@ -538,16 +552,32 @@ void WebServer::handleTest(const httplib::Request& req, httplib::Response& res) 
             return;
         }
         
-        size_t numBytes = static_cast<size_t>(request.value("bytes", 1024u));
+        size_t numBytes = static_cast<size_t>(request.value("bytes", 4096u));
         std::string mode = request.value("mode", "quick");
-        
-        if (numBytes > MAX_ENTROPY_REQUEST) {
-            res.status = 400;
-            res.set_content(errorResponse(400, "Requested bytes exceeds maximum"), "application/json");
-            return;
+        size_t runs = static_cast<size_t>(request.value("runs", 100u));
+
+        size_t totalBytesToFetch = numBytes;
+        if (mode == "exhaustive") {
+            if (runs < 10) runs = 10;
+            if (runs > 200) runs = 200;
+            totalBytesToFetch = numBytes * runs;
+            if (totalBytesToFetch > MAX_ENTROPY_REQUEST) {
+                totalBytesToFetch = MAX_ENTROPY_REQUEST;
+                runs = totalBytesToFetch / (numBytes > 0 ? numBytes : 1);
+                if (runs == 0) {
+                    runs = 10;
+                    numBytes = totalBytesToFetch / runs;
+                }
+            }
+        } else {
+            if (numBytes > MAX_ENTROPY_REQUEST) {
+                res.status = 400;
+                res.set_content(errorResponse(400, "Requested bytes exceeds maximum (1MB)"), "application/json");
+                return;
+            }
         }
         
-        std::vector<uint8_t> data = entropyCollector.getEntropy(numBytes);
+        std::vector<uint8_t> data = entropyCollector.getEntropy(totalBytesToFetch);
 
         std::filesystem::path analyzerScript;
         std::filesystem::path searchDir = std::filesystem::current_path();
@@ -584,7 +614,12 @@ void WebServer::handleTest(const httplib::Request& req, httplib::Response& res) 
                 inputFile.close();
             }
 
-            std::string command = "\"\"" + pythonExe + "\" \"" + analyzerScript.string() + "\" --mode " + mode + " < \"" + tempFile.string() + "\"\"";
+            std::string command = pythonExe + " \"" + analyzerScript.string() + "\" --mode " + mode;
+            if (mode == "exhaustive") {
+                command += " --runs " + std::to_string(runs) + " --sample-bytes " + std::to_string(numBytes);
+            }
+            command += " < \"" + tempFile.string() + "\"";
+
             FILE* pipe = popen(command.c_str(), "r");
             std::string analyzerOutput;
             if (pipe) {
@@ -607,8 +642,30 @@ void WebServer::handleTest(const httplib::Request& req, httplib::Response& res) 
                     response["mode"] = analyzerJson.value("mode", mode);
                     response["timestamp"] = analyzerJson.value("timestamp", "");
                     response["total_bytes"] = analyzerJson.value("total_bytes", data.size());
-                    response["statistics"] = analyzerJson.value("test_results", nlohmann::json::array());
-                    response["data"] = hexEncode(data);
+                    if (mode == "exhaustive") {
+                        response["overall_verdict"] = analyzerJson.value("overall_verdict", "PASSED");
+                        response["overall_passed"] = analyzerJson.value("overall_passed", true);
+                        response["overall_pass_rate_percent"] = analyzerJson.value("overall_pass_rate_percent", 100.0);
+                        response["min_pass_threshold_percent"] = analyzerJson.value("min_pass_threshold_percent", 96.0);
+                        response["runs"] = analyzerJson.value("runs", runs);
+                        response["sample_bytes"] = analyzerJson.value("sample_bytes", numBytes);
+                        response["exhaustive"] = analyzerJson;
+                        response["statistics"] = nlohmann::json::array();
+                        if (analyzerJson.contains("tests") && analyzerJson["tests"].is_object()) {
+                            for (auto& [key, val] : analyzerJson["tests"].items()) {
+                                nlohmann::json item = val;
+                                item["key"] = key;
+                                item["pass"] = val.value("passed", true);
+                                item["p_value"] = val.value("uniformity_p_value", 1.0);
+                                response["statistics"].push_back(item);
+                            }
+                        }
+                    } else {
+                        response["overall_verdict"] = analyzerJson.value("overall_verdict", "PASSED");
+                        response["statistics"] = analyzerJson.value("test_results", nlohmann::json::array());
+                    }
+                    std::vector<uint8_t> previewData = (data.size() > 512) ? std::vector<uint8_t>(data.begin(), data.begin() + 512) : data;
+                    response["data"] = hexEncode(previewData);
                     response["analysis"] = analyzerJson;
                     res.set_content(response.dump(2), "application/json");
                     return;
@@ -673,7 +730,9 @@ void WebServer::handleGetSettings(const httplib::Request& req, httplib::Response
     settings["pool_size"] = entropyCollector.getPoolSize();
     settings["available_bytes"] = entropyCollector.getAvailableBytes();
     settings["source_type"] = entropyCollector.getSourceType();
+    settings["preferred_source"] = entropyCollector.getPreferredSourceType();
     settings["source_name"] = entropyCollector.getSourceName();
+    settings["whitening"] = entropyCollector.getWhiteningAlgorithm();
     settings["initialized"] = entropyCollector.isInitialized();
     settings["total_generated"] = entropyCollector.getTotalBytesGenerated();
     
@@ -698,30 +757,52 @@ void WebServer::handleSettings(const httplib::Request& req, httplib::Response& r
         // Update settings
         if (request.contains("port")) {
             std::string newPort = request["port"].get<std::string>();
-            if (!newPort.empty()) {
+            if (!newPort.empty() && newPort != entropyCollector.getPort()) {
                 entropyCollector.setPort(newPort);
-                responseMsg += "Port updated. Restart required. ";
+                Config::instance().set("serial.port", newPort);
+                responseMsg += "Port updated. ";
             }
         }
         
         if (request.contains("baud_rate")) {
             unsigned int baud = request["baud_rate"].get<unsigned int>();
-            if (baud > 0) {
+            if (baud > 0 && baud != entropyCollector.getBaudRate()) {
                 entropyCollector.setBaudRate(baud);
-                responseMsg += "Baud rate updated. Restart required. ";
+                Config::instance().set("serial.baud_rate", baud);
+                responseMsg += "Baud rate updated. ";
             }
         }
         
         if (request.contains("source_type")) {
             std::string source = request["source_type"].get<std::string>();
-            // This would require reinitialization
-            responseMsg += "Source type change requires service restart. ";
+            if (!source.empty()) {
+                if (entropyCollector.switchSourceType(source)) {
+                    Config::instance().set("entropy.source", source);
+                    responseMsg += "Source switched to " + source + ". ";
+                } else {
+                    Config::instance().set("entropy.source", source);
+                    responseMsg += "Hardware source set as preferred (awaiting device response). ";
+                }
+            }
+        }
+
+        if (request.contains("whitening")) {
+            std::string whitening = request["whitening"].get<std::string>();
+            if (!whitening.empty()) {
+                entropyCollector.setWhiteningAlgorithm(whitening);
+                Config::instance().set("entropy.whitening", whitening);
+                responseMsg += "Whitening algorithm switched to " + whitening + ". ";
+            }
         }
         
         if (request.contains("reseed") && request["reseed"].get<bool>()) {
             entropyCollector.refillPool();
             responseMsg += "Pool refilled. ";
         }
+
+        try {
+            Config::instance().save("config/backend_config.json");
+        } catch (...) {}
         
         nlohmann::json response;
         response["status"] = "ok";

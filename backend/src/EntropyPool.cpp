@@ -1,3 +1,4 @@
+#include "Logger.h"
 #include "EntropyPool.h"
 #include "entropy/IEntropySource.h"
 #include <iostream>
@@ -17,6 +18,10 @@ EntropyPool::EntropyPool(
     , running(false)
     , stopped(false)
     , totalBytesGenerated(0)
+    , currentSpeed(0.0)
+    , windowBytesCollected(0)
+    , windowStartTime(std::chrono::steady_clock::now())
+    , speedHoldoffUntil(std::chrono::steady_clock::now())
     , collectorThread() {
     
     if (!entropySource) {
@@ -36,7 +41,7 @@ bool EntropyPool::start() {
     }
     
     if (!entropySource || !entropySource->isAvailable()) {
-        std::cerr << "[EntropyPool] Cannot start: entropy source not available" << std::endl;
+        { std::stringstream ss; ss << "[EntropyPool] Cannot start: entropy source not available"; LOG_ERROR(ss.str()); }
         return false;
     }
     
@@ -45,6 +50,10 @@ bool EntropyPool::start() {
     tail = 0;
     count = 0;
     totalBytesGenerated = 0;
+    currentSpeed = 0.0;
+    windowBytesCollected = 0;
+    windowStartTime = std::chrono::steady_clock::now();
+    speedHoldoffUntil = std::chrono::steady_clock::now();
     stopped = false;
     running = true;
     
@@ -76,7 +85,7 @@ void EntropyPool::stop() {
         collectorThread.join();
     }
     
-    std::cout << "[EntropyPool] Stopped" << std::endl;
+    { std::stringstream ss; ss << "[EntropyPool] Stopped"; LOG_INFO(ss.str()); }
 }
 
 std::vector<uint8_t> EntropyPool::getEntropy(size_t numBytes) {
@@ -84,22 +93,34 @@ std::vector<uint8_t> EntropyPool::getEntropy(size_t numBytes) {
         return {};
     }
     
-    std::unique_lock<std::mutex> lock(mutex);
-    
-    // Wait until we have enough bytes or pool is stopped
-    while (count < numBytes && !stopped && running) {
-        cv.wait(lock);
+    std::vector<uint8_t> result;
+    result.reserve(numBytes);
+
+    while (result.size() < numBytes) {
+        std::unique_lock<std::mutex> lock(mutex);
+        
+        while (count == 0 && !stopped && running) {
+            cv.wait(lock);
+        }
+        
+        if (stopped || !running) {
+            if (result.empty()) {
+                throw EntropyException("EntropyPool is stopped");
+            }
+            break;
+        }
+        
+        size_t needed = numBytes - result.size();
+        size_t toRead = std::min(needed, count);
+        auto chunk = readBytes(toRead);
+        result.insert(result.end(), chunk.begin(), chunk.end());
+
+        if (needsRefill()) {
+            refillCV.notify_one();
+        }
     }
     
-    if (stopped || !running) {
-        throw EntropyException("EntropyPool is stopped");
-    }
-    
-    if (count < numBytes) {
-        throw EntropyException("EntropyPool: Insufficient entropy available");
-    }
-    
-    return readBytes(numBytes);
+    return result;
 }
 
 uint8_t EntropyPool::getByte() {
@@ -139,6 +160,10 @@ size_t EntropyPool::getTotalBytesGenerated() const {
     return totalBytesGenerated;
 }
 
+double EntropyPool::getSpeed() const {
+    return currentSpeed;
+}
+
 bool EntropyPool::isRunning() const {
     return running;
 }
@@ -167,8 +192,15 @@ size_t EntropyPool::getRefillThreshold() const {
 }
 
 bool EntropyPool::refill() {
-    std::lock_guard<std::mutex> lock(mutex);
     return collectEntropy();
+}
+
+void EntropyPool::resetSpeed() {
+    std::lock_guard<std::mutex> lock(mutex);
+    currentSpeed.store(0.0);
+    windowBytesCollected.store(0);
+    windowStartTime = std::chrono::steady_clock::now();
+    speedHoldoffUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
 }
 
 void EntropyPool::setSource(std::shared_ptr<IEntropySource> source) {
@@ -178,7 +210,15 @@ void EntropyPool::setSource(std::shared_ptr<IEntropySource> source) {
     
     std::lock_guard<std::mutex> lock(mutex);
     entropySource = source;
-    std::cout << "[EntropyPool] Source changed to: " << entropySource->getSourceName() << std::endl;
+    currentSpeed.store(0.0);
+    windowBytesCollected.store(0);
+    windowStartTime = std::chrono::steady_clock::now();
+    speedHoldoffUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
+    { std::stringstream ss; ss << "[EntropyPool] Source changed to: " << entropySource->getSourceName(); LOG_INFO(ss.str()); }
+
+    // Wake up collector thread immediately to switch to new source
+    refillCV.notify_all();
+    cv.notify_all();
 }
 
 std::string EntropyPool::getSourceName() const {
@@ -187,70 +227,148 @@ std::string EntropyPool::getSourceName() const {
 }
 
 void EntropyPool::collectionThread() {
-    std::cout << "[EntropyPool] Collection thread started" << std::endl;
+    { std::stringstream ss; ss << "[EntropyPool] Collection thread started"; LOG_INFO(ss.str()); }
     
     while (running) {
-        // Check if refill is needed
         bool needRefill = false;
+        std::shared_ptr<IEntropySource> source;
         {
             std::lock_guard<std::mutex> lock(mutex);
             needRefill = needsRefill();
+            source = entropySource;
         }
         
-        if (needRefill) {
-            // Collect entropy
-            bool success = false;
-            {
-                std::lock_guard<std::mutex> lock(mutex);
-                success = collectEntropy();
-            }
+        if (!source || !source->isAvailable()) {
+            currentSpeed.store(0.0);
+            windowBytesCollected.store(0);
+            windowStartTime = std::chrono::steady_clock::now();
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+        
+        bool isHardware = (source->getSourceType() == "hardware");
+        
+        if (needRefill || isHardware) {
+            // Collect entropy without holding pool mutex during I/O
+            bool success = collectEntropy();
             
             if (!success) {
-                // If collection failed, wait a bit before retrying
+                currentSpeed.store(0.0);
+                windowBytesCollected.store(0);
+                windowStartTime = std::chrono::steady_clock::now();
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            } else if (!needRefill && isHardware) {
+                // Buffer is full; yield CPU slice so other threads can run without artificially throttling serial stream
+                std::this_thread::yield();
             }
         } else {
-            // Buffer is healthy, wait a bit
-            std::this_thread::sleep_for(COLLECTION_INTERVAL);
-        }
-        
-        // Check for refill request
-        {
-            std::unique_lock<std::mutex> lock(mutex);
-            if (!needsRefill()) {
-                // Wait for notification or timeout
-                refillCV.wait_for(lock, std::chrono::milliseconds(500));
+            // Buffer is full and source is software (OpenSSL).
+            // Benchmark periodically to keep speed metric fresh without high CPU usage.
+            try {
+                auto start = std::chrono::steady_clock::now();
+                std::vector<uint8_t> entropy = source->getEntropy(COLLECTION_BATCH_SIZE);
+                auto end = std::chrono::steady_clock::now();
+                
+                if (!entropy.empty()) {
+                    {
+                        std::lock_guard<std::mutex> lock(mutex);
+                        addBytes(entropy);
+                        totalBytesGenerated += entropy.size();
+                    }
+                    cv.notify_all();
+                    
+                    auto now = std::chrono::steady_clock::now();
+                    if (now < speedHoldoffUntil) {
+                        currentSpeed.store(0.0);
+                    } else {
+                        std::chrono::duration<double> elapsed = end - start;
+                        if (elapsed.count() > 0) {
+                            double inst_speed = entropy.size() / elapsed.count();
+                            double curr = currentSpeed.load();
+                            currentSpeed.store(curr == 0.0 ? inst_speed : (0.2 * inst_speed + 0.8 * curr));
+                        }
+                    }
+                }
+            } catch (...) {
+                currentSpeed.store(0.0);
             }
+            
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
     
-    std::cout << "[EntropyPool] Collection thread stopped" << std::endl;
+    { std::stringstream ss; ss << "[EntropyPool] Collection thread stopped"; LOG_INFO(ss.str()); }
 }
 
 bool EntropyPool::collectEntropy() {
-    if (!entropySource) {
+    std::shared_ptr<IEntropySource> source;
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        source = entropySource;
+    }
+    
+    if (!source) {
         return false;
     }
     
-    if (!entropySource->isAvailable()) {
-        std::cerr << "[EntropyPool] Entropy source not available" << std::endl;
+    if (!source->isAvailable()) {
+        currentSpeed.store(0.0);
+        windowBytesCollected.store(0);
+        windowStartTime = std::chrono::steady_clock::now();
         return false;
     }
     
     try {
-        // Collect a batch of entropy
-        std::vector<uint8_t> entropy = entropySource->getEntropy(COLLECTION_BATCH_SIZE);
+        auto start = std::chrono::steady_clock::now();
+        std::vector<uint8_t> entropy = source->getEntropy(COLLECTION_BATCH_SIZE);
+        auto end = std::chrono::steady_clock::now();
         
         if (!entropy.empty()) {
-            addBytes(entropy);
-            totalBytesGenerated += entropy.size();
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                addBytes(entropy);
+                totalBytesGenerated += entropy.size();
+            }
+            cv.notify_all();
+            
+            auto now = std::chrono::steady_clock::now();
+            if (now < speedHoldoffUntil) {
+                currentSpeed.store(0.0);
+            } else {
+                if (source->getSourceType() == "hardware") {
+                    // For hardware, calculate real continuous throughput over 1-second sliding window!
+                    windowBytesCollected += entropy.size();
+                    auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - windowStartTime).count();
+                    if (elapsedMs >= 1000) {
+                        double realSpeed = (static_cast<double>(windowBytesCollected.load()) * 1000.0) / static_cast<double>(elapsedMs);
+                        double curr = currentSpeed.load();
+                        currentSpeed.store(curr == 0.0 ? realSpeed : (0.3 * realSpeed + 0.7 * curr));
+                        windowBytesCollected.store(0);
+                        windowStartTime = now;
+                    }
+                } else {
+                    std::chrono::duration<double> elapsed = end - start;
+                    if (elapsed.count() > 0) {
+                        double inst_speed = entropy.size() / elapsed.count();
+                        double curr = currentSpeed.load();
+                        currentSpeed.store(curr == 0.0 ? inst_speed : (0.2 * inst_speed + 0.8 * curr));
+                    }
+                }
+            }
+            
             return true;
         }
         
+        currentSpeed.store(0.0);
+        windowBytesCollected.store(0);
+        windowStartTime = std::chrono::steady_clock::now();
         return false;
         
     } catch (const std::exception& e) {
-        std::cerr << "[EntropyPool] Error collecting entropy: " << e.what() << std::endl;
+        { std::stringstream ss; ss << "[EntropyPool] Error collecting entropy: " << e.what(); LOG_ERROR(ss.str()); }
+        currentSpeed.store(0.0);
+        windowBytesCollected.store(0);
+        windowStartTime = std::chrono::steady_clock::now();
         return false;
     }
 }
@@ -261,18 +379,17 @@ void EntropyPool::addBytes(const std::vector<uint8_t>& data) {
         return;
     }
     
-    size_t bytesToAdd = std::min(data.size(), bufferSize - count);
-    if (bytesToAdd == 0) {
-        return; // Buffer is full
-    }
-    
-    // Copy bytes into buffer
-    for (size_t i = 0; i < bytesToAdd; ++i) {
-        buffer[tail] = data[i];
+    // Circular FIFO insertion with overwrite when full
+    for (uint8_t byte : data) {
+        buffer[tail] = byte;
         tail = (tail + 1) % bufferSize;
+        if (count < bufferSize) {
+            count++;
+        } else {
+            // Buffer is full: advance head to overwrite oldest byte
+            head = (head + 1) % bufferSize;
+        }
     }
-    
-    count += bytesToAdd;
     
     // Notify waiting readers
     cv.notify_all();

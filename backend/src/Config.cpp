@@ -252,9 +252,9 @@ bool Config::validate() const {
     
     if (hasKey("serial.baud_rate")) {
         unsigned int baud = get<unsigned int>("serial.baud_rate", 0);
-        std::vector<unsigned int> validBaudRates = {9600, 19200, 38400, 57600, 115200, 230400};
+        std::vector<unsigned int> validBaudRates = {9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600};
         if (std::find(validBaudRates.begin(), validBaudRates.end(), baud) == validBaudRates.end()) {
-            validationErrors.push_back("serial.baud_rate must be a valid value (9600, 19200, 38400, 57600, 115200, 230400)");
+            validationErrors.push_back("serial.baud_rate must be a valid value (9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600)");
         }
     }
     
@@ -305,7 +305,7 @@ std::string Config::getSerialPort() const {
 }
 
 unsigned int Config::getSerialBaudRate() const {
-    return get<unsigned int>("serial.baud_rate", 115200);
+    return get<unsigned int>("serial.baud_rate", 921600);
 }
 
 unsigned int Config::getSerialTimeout() const {
@@ -376,7 +376,7 @@ nlohmann::json Config::createDefaultConfig() {
 
     defaults["serial"] = nlohmann::json::object();
     defaults["serial"]["port"] = "COM3";
-    defaults["serial"]["baud_rate"] = 115200;
+    defaults["serial"]["baud_rate"] = 921600;
     defaults["serial"]["timeout_ms"] = 5000;
 
     defaults["entropy"] = nlohmann::json::object();

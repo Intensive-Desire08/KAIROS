@@ -96,6 +96,12 @@ public:
     size_t getTotalBytesGenerated() const;
 
     /**
+     * @brief Get the current entropy generation speed in bytes/sec
+     * @return double Speed
+     */
+    double getSpeed() const;
+
+    /**
      * @brief Check if the pool is running
      * @return true if running
      */
@@ -136,6 +142,11 @@ public:
      * @return true if refill was successful
      */
     bool refill();
+
+    /**
+     * @brief Reset speed metrics and hold at 0 for transition
+     */
+    void resetSpeed();
 
     /**
      * @brief Set the entropy source
@@ -197,6 +208,10 @@ private:
     std::atomic<bool> running;
     std::atomic<bool> stopped;
     std::atomic<size_t> totalBytesGenerated;
+    std::atomic<double> currentSpeed;
+    std::atomic<size_t> windowBytesCollected{0};
+    std::chrono::steady_clock::time_point windowStartTime;
+    std::chrono::steady_clock::time_point speedHoldoffUntil;
 
     // Synchronization
     mutable std::mutex mutex;

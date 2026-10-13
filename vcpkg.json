@@ -1,6 +1,6 @@
 {
   "name": "pseudoquantumentropy",
-  "version": "0.2.alpha.build.01",
+  "version-string": "1.0.0",
   "description": "PseudoQuantum Entropy Service with Cryptographic Applications",
   "homepage": "https://github.com/Intensive-Desire08/PseudoQuantumEntropy",
   "dependencies": [
