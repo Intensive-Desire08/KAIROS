@@ -665,6 +665,94 @@ void liveStreamMonitor(httplib::Client& cli) {
 // ============================================================================
 // Feature 7: NIST Statistical Analysis & ASCII Uniformity Chart
 // ============================================================================
+void renderPValueUniformityDistribution(const std::vector<int>& bins, double expected, double pValue, const std::string& title) {
+    if (bins.size() != 10) return;
+    
+    int maxBin = 0;
+    int totalCount = 0;
+    for (int count : bins) {
+        if (count > maxBin) maxBin = count;
+        totalCount += count;
+    }
+    
+    // Scale chart height
+    int chartMax = std::max(maxBin, static_cast<int>(std::ceil(expected * 1.35)));
+    if (chartMax < 10) chartMax = 10;
+    const int chartHeight = 10;
+    
+    std::cout << "\n" << std::string(75, '=') << "\n";
+    std::cout << "  " << title << "\n";
+    std::cout << "  (Evaluations: " << totalCount << " p-values | Expected/bin: " 
+              << std::fixed << std::setprecision(1) << expected << " | Uniformity p-val: " 
+              << std::fixed << std::setprecision(4) << pValue 
+              << " -> " << (pValue >= 0.0001 ? "[UNIFORM: PASS]" : "[NON-UNIFORM: FAIL]") << ")\n";
+    std::cout << std::string(75, '=') << "\n";
+    
+    int expectedRow = static_cast<int>(std::round(expected * chartHeight / chartMax));
+    
+    for (int r = chartHeight; r >= 1; --r) {
+        double rowThreshold = (static_cast<double>(r) / chartHeight) * chartMax;
+        double prevRowThreshold = (static_cast<double>(r - 1) / chartHeight) * chartMax;
+        bool isExpectedRow = (r == expectedRow);
+        
+        // Y-axis label
+        std::cout << std::setw(4) << static_cast<int>(rowThreshold) << " |";
+        
+        for (int b = 0; b < 10; ++b) {
+            if (bins[b] >= rowThreshold) {
+                std::cout << " [###] ";
+            } else if (bins[b] >= prevRowThreshold) {
+                std::cout << " [===] ";
+            } else if (isExpectedRow) {
+                std::cout << " - - - ";
+            } else {
+                std::cout << "       ";
+            }
+        }
+        
+        if (isExpectedRow) {
+            std::cout << " <-- E=" << std::fixed << std::setprecision(1) << expected << " (Ideal Uniform Line)";
+        }
+        std::cout << "\n";
+    }
+    
+    // X-axis border
+    std::cout << "     +";
+    for (int b = 0; b < 10; ++b) {
+        std::cout << "-------";
+    }
+    std::cout << "-> (p-value)\n";
+    
+    // Bin intervals
+    std::cout << "     |";
+    for (int b = 0; b < 10; ++b) {
+        if (b == 9) {
+            std::cout << " .9-1.0|";
+        } else {
+            std::cout << " ." << b << "-." << (b + 1) << " |";
+        }
+    }
+    std::cout << "\n";
+    
+    // Counts
+    std::cout << "Cnt: |";
+    for (int b = 0; b < 10; ++b) {
+        std::cout << "  " << std::setw(3) << bins[b] << "  |";
+    }
+    std::cout << "\n";
+    
+    // Uniformity evaluation verdict
+    std::cout << "\nUniformity Distribution Assessment (NIST SP 800-22 Rev 1a Section 4.2.2):\n";
+    if (pValue >= 0.0001) {
+        std::cout << "  [PASS] Distribution of p-values conforms to a Uniform Distribution U(0,1).\n";
+        std::cout << "         Chi-Square Goodness-of-Fit p-value (" << std::fixed << std::setprecision(4) 
+                  << pValue << ") >= 0.0001 threshold.\n";
+    } else {
+        std::cout << "  [FAIL] Significant deviation from uniformity detected (p-value < 0.0001).\n";
+    }
+    std::cout << std::string(75, '-') << "\n";
+}
+
 void runStatisticalAnalysis(httplib::Client& cli) {
     while (true) {
         std::cout << "\n--- [7] NIST Statistical Entropy Analysis ---" << std::endl;
@@ -757,11 +845,35 @@ void runStatisticalAnalysis(httplib::Client& cli) {
                           << " (" << (stats.value("monobit_pass", false) ? "[PASS]" : "[FAIL]") << ")\n";
             }
 
-            // Exhaustive mode uniformity histograms
+            // Exhaustive mode uniformity histograms & 2D graph
             if (j.contains("exhaustive") && j["exhaustive"].is_object()) {
                 auto exh = j["exhaustive"];
+
+                // Grand cumulative 10-bin p-value distribution
+                if (exh.contains("overall_histogram_bins_10") && exh["overall_histogram_bins_10"].is_array()) {
+                    std::vector<int> overallBins;
+                    for (auto& val : exh["overall_histogram_bins_10"]) {
+                        overallBins.push_back(val.get<int>());
+                    }
+                    double overallExp = exh.value("overall_expected_per_bin", 50.0);
+                    double overallUnifP = exh.value("overall_uniformity_p_value", 1.0);
+
+                    renderPValueUniformityDistribution(
+                        overallBins,
+                        overallExp,
+                        overallUnifP,
+                        "NIST SP 800-22 Rev 1a: Cumulative p-Value Uniformity Distribution"
+                    );
+
+                    std::string optPlot = readLine("\nLaunch graphical plot window? [y/N] > ");
+                    if (optPlot == "y" || optPlot == "Y") {
+                        std::cout << "\n[EntropyCLI is a pure C++ test console. High-resolution ASCII distribution plot displayed above.]\n";
+                    }
+                }
+
+                // Individual test uniformity summaries
                 if (exh.contains("tests") && exh["tests"].is_object()) {
-                    std::cout << "\n--- NIST SP 800-22 Multi-Run Test Uniformity ---" << std::endl;
+                    std::cout << "\n--- Per-Test NIST SP 800-22 Uniformity Breakdown ---" << std::endl;
                     for (auto& [tName, tObj] : exh["tests"].items()) {
                         double unifP = tObj.value("uniformity_p_value", 1.0);
                         bool unifPass = tObj.value("passed", true);
@@ -769,10 +881,22 @@ void runStatisticalAnalysis(httplib::Client& cli) {
                         std::cout << "  [" << tName << "]: Pass Rate=" << std::fixed << std::setprecision(1) << tPassRate 
                                   << "%, Uniformity p-val=" << std::setprecision(4) << unifP 
                                   << " (" << (unifPass ? "PASS" : "FAIL") << ")\n";
-                        if (tObj.contains("bins") && tObj["bins"].is_array()) {
-                            std::cout << "    Histogram: ";
-                            for (auto& bin : tObj["bins"]) {
-                                std::cout << "[" << bin.get<int>() << "] ";
+                        
+                        std::vector<int> tBins;
+                        if (tObj.contains("histogram_bins_10") && tObj["histogram_bins_10"].is_array()) {
+                            for (auto& bVal : tObj["histogram_bins_10"]) {
+                                tBins.push_back(bVal.get<int>());
+                            }
+                        } else if (tObj.contains("bins") && tObj["bins"].is_array()) {
+                            for (auto& bVal : tObj["bins"]) {
+                                tBins.push_back(bVal.get<int>());
+                            }
+                        }
+
+                        if (!tBins.empty()) {
+                            std::cout << "    10-Bin Counts: ";
+                            for (int bCount : tBins) {
+                                std::cout << "[" << bCount << "] ";
                             }
                             std::cout << "\n";
                         }

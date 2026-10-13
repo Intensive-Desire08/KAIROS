@@ -79,30 +79,32 @@ def print_gauge(score: float, level: str, width: int = 24):
 
 
 def render_ascii_timeline(scores: list[float], height: int = 10, width: int = 50):
-    """Draws an ASCII timeline of threat scores [0.0, 1.0]."""
+    """Draws a clean ASCII timeline of threat scores [0.0, 1.0]."""
     print("\n--- ASCII Threat Score Timeline (50 Consecutive Flows) ---")
     grid = [[" " for _ in range(len(scores))] for _ in range(height)]
     
     # 0 is top (score 1.0), height-1 is bottom (score 0.0)
     for col, s in enumerate(scores):
-        row = height - 1 - int(round(s * (height - 1)))
-        row = max(0, min(height - 1, row))
-        grid[row][col] = "^" if s >= 0.50 else "."
-        # Fill under curve
-        for r in range(row + 1, height):
-            if grid[r][col] == " ":
-                grid[r][col] = "|" if s >= 0.50 else " "
+        if s >= 0.25:
+            row = height - 1 - int(round(s * (height - 1)))
+            row = max(0, min(height - 1, row))
+            fill_ch = "#" if s >= 0.75 else ("*" if s >= 0.50 else ":")
+            grid[row][col] = "^"
+            for r in range(row + 1, height):
+                grid[r][col] = fill_ch
+        # Continuous baseline across all flows
+        grid[height - 1][col] = "#" if s >= 0.75 else ("*" if s >= 0.50 else (":" if s >= 0.25 else "."))
 
     for r in range(height):
         tag = ""
         if r == 0:
-            tag = " 1.0 [RED]   "
+            tag = "1.0 [RED]   "
         elif r == int(round(0.25 * (height - 1))):
-            tag = " 0.75 [ORNG] "
+            tag = "0.75 [ORNG] "
         elif r == int(round(0.50 * (height - 1))):
-            tag = " 0.50 [YLLW] "
+            tag = "0.50 [YLLW] "
         elif r == int(round(0.75 * (height - 1))):
-            tag = " 0.25 [GREN] "
+            tag = "0.25 [GREN] "
         elif r == height - 1:
             tag = " 0.0 [SAFE] "
         else:
