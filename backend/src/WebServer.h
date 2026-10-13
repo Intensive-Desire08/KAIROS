@@ -17,7 +17,7 @@ class EntropyCollector;
 class Logger;
 
 /**
- * @brief HTTP Server for the PseudoQuantum Entropy Service
+ * @brief HTTP Server for the KAIROS Entropy Module
  *
  * Provides REST API endpoints for:
  * - Entropy retrieval

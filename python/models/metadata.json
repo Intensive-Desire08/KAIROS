@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "trained_at": "2026-10-13T15:47:54Z",
+  "trained_at": "2026-10-13T17:17:07Z",
   "dataset": "synthetic-benign-dev",
   "features": [
     "data_length",

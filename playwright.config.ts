@@ -71,7 +71,7 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: '.\\build\\bin\\PseudoQuantumEntropy.exe', // The command to start your local app
+    command: '.\\build\\bin\\EntropyModule.exe', // The command to start your local app
     url: 'http://localhost:8080', // The URL your app runs on
     reuseExistingServer: !process.env.CI,
   },

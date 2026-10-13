@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(PseudoQuantumEntropy VERSION 1.0 LANGUAGES CXX)
+project(EntropyModule VERSION 0.3 LANGUAGES CXX)
 
 # ============================================================================
 # Compiler and Standard Settings
@@ -123,13 +123,13 @@ set(HEADERS
 # Executable
 # ============================================================================
 
-add_executable(PseudoQuantumEntropy ${SOURCES} ${HEADERS})
+add_executable(EntropyModule ${SOURCES} ${HEADERS})
 
 # ============================================================================
 # Link Libraries
 # ============================================================================
 
-target_link_libraries(PseudoQuantumEntropy
+target_link_libraries(EntropyModule
     ${Boost_LIBRARIES}
     ${OPENSSL_LIBRARIES}
     nlohmann_json::nlohmann_json
@@ -137,7 +137,7 @@ target_link_libraries(PseudoQuantumEntropy
 
 # Windows specific libraries
 if(WIN32)
-    target_link_libraries(PseudoQuantumEntropy
+    target_link_libraries(EntropyModule
         ws2_32
         crypt32
         advapi32
@@ -148,7 +148,7 @@ endif()
 
 # Linux specific libraries
 if(UNIX AND NOT APPLE)
-    target_link_libraries(PseudoQuantumEntropy
+    target_link_libraries(EntropyModule
         pthread
         dl
     )
@@ -156,7 +156,7 @@ endif()
 
 # macOS specific libraries
 if(APPLE)
-    target_link_libraries(PseudoQuantumEntropy
+    target_link_libraries(EntropyModule
         pthread
     )
 endif()
@@ -166,7 +166,7 @@ endif()
 # ============================================================================
 
 if(WIN32)
-    target_compile_definitions(PseudoQuantumEntropy PRIVATE
+    target_compile_definitions(EntropyModule PRIVATE
         WIN32_LEAN_AND_MEAN
         _WIN32_WINNT=0x0A00
         NOMINMAX
@@ -175,12 +175,12 @@ if(WIN32)
 endif()
 
 # Enable OpenSSL support for cpp-httplib
-target_compile_definitions(PseudoQuantumEntropy PRIVATE
+target_compile_definitions(EntropyModule PRIVATE
     CPPHTTPLIB_OPENSSL_SUPPORT
 )
 
 if(UNIX)
-    target_compile_definitions(PseudoQuantumEntropy PRIVATE
+    target_compile_definitions(EntropyModule PRIVATE
         _GNU_SOURCE
     )
 endif()
@@ -189,8 +189,8 @@ endif()
 # Properties
 # ============================================================================
 
-set_target_properties(PseudoQuantumEntropy PROPERTIES
-    OUTPUT_NAME "PseudoQuantumEntropy"
+set_target_properties(EntropyModule PROPERTIES
+    OUTPUT_NAME "EntropyModule"
     VERSION ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}
 )
@@ -198,19 +198,19 @@ set_target_properties(PseudoQuantumEntropy PROPERTIES
 # Enable debugging symbols in Debug mode
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     if(MSVC)
-        target_compile_options(PseudoQuantumEntropy PRIVATE /Zi /Od)
-        target_link_options(PseudoQuantumEntropy PRIVATE /DEBUG)
+        target_compile_options(EntropyModule PRIVATE /Zi /Od)
+        target_link_options(EntropyModule PRIVATE /DEBUG)
     else()
-        target_compile_options(PseudoQuantumEntropy PRIVATE -g -O0)
+        target_compile_options(EntropyModule PRIVATE -g -O0)
     endif()
 endif()
 
 # Enable optimization in Release mode
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     if(MSVC)
-        target_compile_options(PseudoQuantumEntropy PRIVATE /O2 /MT)
+        target_compile_options(EntropyModule PRIVATE /O2 /MT)
     else()
-        target_compile_options(PseudoQuantumEntropy PRIVATE -O3 -DNDEBUG)
+        target_compile_options(EntropyModule PRIVATE -O3 -DNDEBUG)
     endif()
 endif()
 
@@ -240,7 +240,7 @@ configure_file(
 
 message(STATUS "")
 message(STATUS "========================================")
-message(STATUS "PseudoQuantumEntropy Build Configuration")
+message(STATUS "Entropy Module Build Configuration")
 message(STATUS "========================================")
 message(STATUS "CMake version:     ${CMAKE_VERSION}")
 message(STATUS "Build type:        ${CMAKE_BUILD_TYPE}")

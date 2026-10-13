@@ -81,7 +81,7 @@ void printBanner() {
 ║     ██║     ███████╗╚██████╔╝██║  ██║╚██████╔╝                ║
 ║     ╚═╝     ╚══════╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝                 ║
 ║                                                               ║
-║     PseudoQuantum Entropy Service v1.0                        ║
+║     KAIROS Entropy Module v0.3                                ║
 ║     Hardware-Backed Entropy with Cryptographic Applications   ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
@@ -197,7 +197,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    LOG_INFO("=== PseudoQuantumEntropy Backend Starting ===");
+    LOG_INFO("=== KAIROS Entropy Module Starting ===");
     LOG_INFO("Build: " + std::string(BUILD_TYPE) + " - " + std::string(PLATFORM_NAME));
     LOG_INFO("Config loaded from: " + configPath);
 
@@ -290,9 +290,9 @@ int main(int argc, char* argv[]) {
     // 8. Ready & Running
     // ------------------------------------------------------------------------
     std::cout << "\n" << std::string(60, '=') << std::endl;
-    std::cout << "  PseudoQuantumEntropy v" << PROJECT_VERSION << " - RUNNING" << std::endl;
+    std::cout << "  KAIROS Entropy Module v" << PROJECT_VERSION << " - RUNNING" << std::endl;
     std::cout << std::string(60, '=') << std::endl;
-    std::cout << "  Web interface   : http://localhost:" << config.getHttpPort() << std::endl;
+    std::cout << "  API Service     : http://localhost:" << config.getHttpPort() << std::endl;
     std::cout << "  Entropy source  : " << entropyCollector.getSourceName() << std::endl;
     std::cout << "  Status          : Press Ctrl+C to stop" << std::endl;
     std::cout << std::string(60, '=') << std::endl;
@@ -329,7 +329,7 @@ int main(int argc, char* argv[]) {
     LOG_INFO("Entropy collector stopped");
 
     // Flush and stop logger
-    LOG_INFO("PseudoQuantumEntropy backend stopped");
+    LOG_INFO("KAIROS Entropy Module stopped");
     logger.shutdown();
 
     std::cout << "[main] Goodbye!" << std::endl;

@@ -1,8 +1,7 @@
 {
-  "name": "pseudoquantumentropy",
-  "version-string": "1.0.0",
-  "description": "PseudoQuantum Entropy Service with Cryptographic Applications",
-  "homepage": "https://github.com/Intensive-Desire08/PseudoQuantumEntropy",
+  "name": "kairos-entropy-module",
+  "version-string": "0.3.0",
+  "description": "KAIROS Entropy Module with Hardware & Fallback Cryptographic RNG",
   "dependencies": [
     "boost-asio",
     "boost-system",

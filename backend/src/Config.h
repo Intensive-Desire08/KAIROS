@@ -10,7 +10,7 @@
 #include "json.hpp"
 
 /**
- * @brief Configuration manager for the PseudoQuantum Entropy Service
+ * @brief Configuration manager for the KAIROS Entropy Module
  * 
  * Features:
  * - JSON-based configuration file
