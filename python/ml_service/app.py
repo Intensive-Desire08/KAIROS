@@ -8,8 +8,12 @@ trust boundary, Section 3.3). Stateless (Section 2.1).
 
 from __future__ import annotations
 
+import json
+import sys
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -24,7 +28,41 @@ from .schemas import ErrorResponse, HealthResponse, ThreatRequest, ThreatRespons
 
 APP_VERSION = "1.0.0"
 
-app = FastAPI(title="KAIROS ML Threat Detection Service", version=APP_VERSION)
+LOGS_DIR = Path(__file__).resolve().parents[1] / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOGS_DIR / "ml_service.log"
+
+
+def setup_logging() -> None:
+    """Configure Loguru for structured JSON logging (stdout + file) per Section 5.8."""
+    logger.remove()
+    logger.add(sys.stdout, format="{message}")
+    logger.add(str(LOG_FILE), format="{message}", rotation="10 MB", retention="7 days")
+
+
+setup_logging()
+
+
+def log_event(severity: str, event: str, message: str | None = None, **fields) -> None:
+    """Emit a structured JSON log entry (Section 5.8). Never logs plaintext (Section 11)."""
+    entry = {
+        "level": severity.lower(),
+        "timestamp": _now_iso(),
+        "event": event,
+    }
+    if message:
+        entry["message"] = message
+    for k, v in fields.items():
+        if k == "level":
+            entry["security_level"] = v
+            entry["level"] = v
+        else:
+            entry[k] = v
+
+    line = json.dumps(entry)
+    log_fn = getattr(logger, severity.lower(), logger.info)
+    log_fn(line)
+
 
 _start_time: float = 0.0
 
@@ -67,9 +105,9 @@ def _error_body(error_code: str, message: str, details: dict | None = None) -> d
     ).model_dump(exclude_none=True)
 
 
-@app.on_event("startup")
-def on_startup() -> None:
-    """Load model + scaler at startup (Section 5.9 Startup Sequence)."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and graceful shutdown (Section 5.9)."""
     global _start_time
     _start_time = time.monotonic()
 
@@ -77,17 +115,18 @@ def on_startup() -> None:
 
     model_module.model_state.load()
     if model_module.model_state.model_loaded:
-        logger.info("model_loaded | Isolation Forest and scaler loaded successfully")
+        log_event("info", "model_loaded", message="Isolation Forest and scaler loaded successfully")
     else:
-        logger.error(f"model_load_failed | {model_module.model_state.load_error}")
+        log_event("error", "model_load_failed", message=str(model_module.model_state.load_error))
 
-    logger.info(f"service_started | KAIROS ML Threat Detection Service v{APP_VERSION}")
+    log_event("info", "service_started", message=f"KAIROS ML Threat Detection Service v{APP_VERSION}")
+
+    yield
+
+    log_event("info", "service_stopped", message="shutdown complete (stateless, no cleanup required)")
 
 
-@app.on_event("shutdown")
-def on_shutdown() -> None:
-    """Graceful shutdown (Section 5.9). Stateless — no cleanup required."""
-    logger.info("service_stopped | shutdown complete (stateless, no cleanup required)")
+app = FastAPI(title="KAIROS ML Threat Detection Service", version=APP_VERSION, lifespan=lifespan)
 
 
 @app.get("/health")
@@ -139,7 +178,7 @@ async def analyze_threat(request: Request):
         )
 
     if not model_module.model_state.model_loaded:
-        logger.error("inference_error | model not loaded")
+        log_event("error", "inference_error", message="Model is not loaded")
         return JSONResponse(
             status_code=503,
             content=_error_body(ErrorCode.MODEL_NOT_LOADED.value, "Model is not loaded"),
@@ -153,13 +192,13 @@ async def analyze_threat(request: Request):
             threat_request.features, scaled
         )
     except ValueError as exc:
-        logger.error(f"validation_error | {exc}")
+        log_event("error", "validation_error", message=str(exc))
         return JSONResponse(
             status_code=400,
             content=_error_body(ErrorCode.INVALID_FEATURE.value, str(exc)),
         )
     except Exception as exc:
-        logger.error(f"inference_error | {exc}")
+        log_event("error", "inference_error", message=str(exc))
         return JSONResponse(
             status_code=500,
             content=_error_body(ErrorCode.INFERENCE_FAILED.value, "Model inference failed", details={"error": str(exc)}),
@@ -176,13 +215,18 @@ async def analyze_threat(request: Request):
     )
 
     # Structured JSON logging (Section 5.8) — NEVER logs plaintext (Section 11.6)
-    log_event = "attack_detected" if attack_label else "threat_analyzed"
-    logger.info(
-        f"{log_event} | session_id={threat_request.session_id} "
-        f"source={threat_request.source} target={threat_request.target} "
-        f"threat_score={response.threat_score} level={response.level} "
-        f"attack_label={attack_label} confidence={response.confidence} "
-        f"inference_time_ms={inference_time_ms}"
+    event_name = "attack_detected" if attack_label else "threat_analyzed"
+    log_event(
+        "info",
+        event_name,
+        session_id=threat_request.session_id,
+        source=threat_request.source,
+        target=threat_request.target,
+        threat_score=response.threat_score,
+        level=response.level,
+        attack_label=attack_label,
+        confidence=response.confidence,
+        inference_time_ms=inference_time_ms,
     )
 
     return JSONResponse(status_code=200, content=response.model_dump())

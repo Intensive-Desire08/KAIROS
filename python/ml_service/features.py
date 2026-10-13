@@ -30,11 +30,9 @@ def build_feature_vector(features: ThreatFeatures) -> np.ndarray:
     """
     Build the canonical 8-element feature vector in FEATURE_ORDER.
 
-    Per Section 5.5 (Inference Flow):
-      - session_duration is not provided by the Gateway in the analyze
-        request; set to 0 (the Gateway tracks it separately for policy,
-        not for inference).
-      - total_packets is likewise not provided; set to 0.
+    Per Section 4.4 and Section 5.5:
+      - session_duration and total_packets are used if provided by the Gateway;
+        otherwise default to 0.0.
     """
     row: Dict[str, float] = {
         "data_length": float(features.data_length),
@@ -43,8 +41,8 @@ def build_feature_vector(features: ThreatFeatures) -> np.ndarray:
         "avg_packet_size": float(features.avg_packet_size),
         "destination_diversity": float(features.destination_diversity),
         "failed_logins": float(features.failed_logins),
-        "session_duration": 0.0,
-        "total_packets": 0.0,
+        "session_duration": float(getattr(features, "session_duration", 0.0) or 0.0),
+        "total_packets": float(getattr(features, "total_packets", 0.0) or 0.0),
     }
     vector = np.array([[row[name] for name in FEATURE_ORDER]], dtype=np.float64)
     return vector

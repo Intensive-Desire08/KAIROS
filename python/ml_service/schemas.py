@@ -18,6 +18,8 @@ class ThreatFeatures(BaseModel):
     avg_packet_size: float = Field(..., ge=0, le=65535, description="Running average packet size")
     destination_diversity: int = Field(..., ge=0, le=255, description="Unique target device count")
     failed_logins: int = Field(0, ge=0, description="Failed login attempts (Section 5.6, Option A)")
+    session_duration: float = Field(0.0, ge=0, description="Session duration in seconds (Section 4.4)")
+    total_packets: int = Field(0, ge=0, description="Total packet count in session (Section 4.4)")
     timestamp: Optional[str] = None
 
     @field_validator("protocol")

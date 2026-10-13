@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "trained_at": "2026-09-04T10:47:05Z",
+  "trained_at": "2026-10-13T15:47:54Z",
   "dataset": "synthetic-benign-dev",
   "features": [
     "data_length",
@@ -22,15 +22,15 @@
     "warm_start": false
   },
   "validation": {
-    "false_positive_rate": 0.049916666666666665,
+    "false_positive_rate": 0.0449,
     "test_size": 0.2
   },
   "score_calibration": {
-    "score_median": -0.4325246108984425,
-    "score_p01": -0.6805184069593029
+    "score_median": -0.42870594332851186,
+    "score_p01": -0.6849726736448387
   },
   "training_data": {
-    "samples": 48000,
+    "samples": 40000,
     "features": 8
   }
 }

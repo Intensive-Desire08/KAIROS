@@ -47,10 +47,25 @@ def test_build_feature_vector_order_and_shape():
     # protocol_encoded should be at index 1 (Section 4.4)
     assert vector[0][FEATURE_ORDER.index("protocol_encoded")] == 1.0
     assert vector[0][FEATURE_ORDER.index("data_length")] == 100.0
-    # session_duration and total_packets are not provided by the Gateway
-    # in the analyze request; must default to 0 (Section 5.5).
+    # session_duration and total_packets default to 0.0 when omitted
     assert vector[0][FEATURE_ORDER.index("session_duration")] == 0.0
     assert vector[0][FEATURE_ORDER.index("total_packets")] == 0.0
+
+
+def test_build_feature_vector_with_session_metrics():
+    features = DummyFeatures(
+        data_length=100,
+        protocol="tcp",
+        packet_rate=5.0,
+        avg_packet_size=200.0,
+        destination_diversity=2,
+        failed_logins=0,
+        session_duration=45.5,
+        total_packets=120,
+    )
+    vector = build_feature_vector(features)
+    assert vector[0][FEATURE_ORDER.index("session_duration")] == 45.5
+    assert vector[0][FEATURE_ORDER.index("total_packets")] == 120.0
 
 
 class DummyScaler:
