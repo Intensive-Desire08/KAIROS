@@ -215,6 +215,55 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 # ============================================================================
+# Interactive CLI Menu Executable
+# ============================================================================
+
+set(CLI_SOURCES
+    src/cli/EntropyCLI.cpp
+    src/utilities/Helpers.cpp
+)
+
+add_executable(EntropyCLI ${CLI_SOURCES})
+
+target_include_directories(EntropyCLI PRIVATE
+    include
+    src
+)
+
+target_link_libraries(EntropyCLI
+    ${OPENSSL_LIBRARIES}
+    nlohmann_json::nlohmann_json
+)
+
+if(WIN32)
+    target_link_libraries(EntropyCLI
+        ws2_32
+        crypt32
+    )
+    target_compile_definitions(EntropyCLI PRIVATE
+        WIN32_LEAN_AND_MEAN
+        _WIN32_WINNT=0x0A00
+        NOMINMAX
+        _CRT_SECURE_NO_WARNINGS
+    )
+endif()
+
+if(UNIX AND NOT APPLE)
+    target_link_libraries(EntropyCLI
+        pthread
+        dl
+    )
+endif()
+
+target_compile_definitions(EntropyCLI PRIVATE
+    CPPHTTPLIB_OPENSSL_SUPPORT
+)
+
+set_target_properties(EntropyCLI PROPERTIES
+    OUTPUT_NAME "EntropyCLI"
+)
+
+# ============================================================================
 # Tests (Optional - Add later)
 # ============================================================================
 
